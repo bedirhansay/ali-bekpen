@@ -1,199 +1,303 @@
-import { Plus, Edit, Trash2, ChevronLeft } from 'lucide-react';
-import { useState, useMemo, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
-import { Button, Form, Input, InputNumber, Row, Col, Typography, Popconfirm, Drawer, Select, DatePicker, Segmented, Skeleton, Spin, Alert } from 'antd';
+import { Plus, ChevronLeft, Edit, Trash2, ArrowRight, MapPin, Calendar, TrendingUp, TrendingDown } from 'lucide-react';
+import { useState, useMemo, memo } from 'react';
+import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+    Button, Form, Input, Row, Col, Typography, Popconfirm,
+    Drawer, DatePicker, Spin, Modal, Select, Skeleton
+} from 'antd';
 import dayjs from 'dayjs';
 import { showSuccess, showError } from '@/lib/toast';
 
 import { getVehicle, deleteVehicle, updateVehicle } from '../../api';
-import {
-    getTransactions,
-    createTransaction,
-    updateTransaction,
-    deleteTransaction,
-    getVehicleSummary
-} from '@/features/transactions/api';
-import { useExchangeRates } from '@/features/exchangeRates/hooks/useExchangeRates';
-import { getLatestExchangeRates } from '@/features/exchangeRates/api';
-import { Transaction, CreateTransactionDTO, TransactionFilters, CurrencyCode } from '@/features/transactions/types';
-import { EmptyState } from '@/features/transactions/components/EmptyState';
-import { TransactionCard } from '@/features/transactions/components/TransactionCard';
-import { DateFilter } from '@/features/transactions/components/DateFilter';
-import { useCategories } from '@/features/categories/hooks';
+import { getSefersByVehicle, createSefer, updateSefer, deleteSefer } from '@/features/sefers/api';
+import { getSeferSummary } from '@/features/transactions/api';
+import { Sefer } from '@/features/sefers/types';
 import { formatCurrency } from '@/shared/utils/formatters';
 
 const { Title, Text } = Typography;
 
+/* ─── Sefer Card ─────────────────────────────────────────────────────────── */
+
+interface SeferCardProps {
+    sefer: Sefer;
+    vehicleId: string;
+    onEdit: (s: Sefer) => void;
+    onDelete: (id: string) => void;
+    index: number;
+}
+
+const SeferCard = memo(({ sefer, vehicleId, onEdit, onDelete, index }: SeferCardProps) => {
+    const { data: summary, isLoading: isSummaryLoading } = useQuery({
+        queryKey: ['seferSummary', sefer.id],
+        queryFn: () => getSeferSummary(sefer.id),
+        staleTime: 60 * 1000,
+    });
+
+    const net = summary?.netTRY ?? 0;
+    const isPositive = net >= 0;
+    const isOpen = sefer.status === 'OPEN';
+
+    const startDate = sefer.startDate?.toDate ? dayjs(sefer.startDate.toDate()).format('DD.MM.YYYY') : '—';
+    const endDate = sefer.endDate?.toDate ? dayjs((sefer.endDate as any).toDate()).format('DD.MM.YYYY') : null;
+
+    return (
+        <div
+            className={`sefer-card animated-list-item stagger-${(index % 4) + 1}`}
+            style={{
+                background: 'rgba(30, 41, 59, 0.7)',
+                backdropFilter: 'blur(16px)',
+                border: `1px solid ${isOpen ? 'rgba(37, 99, 235, 0.25)' : 'rgba(255,255,255,0.06)'}`,
+                borderRadius: 16,
+                padding: 0,
+                overflow: 'hidden',
+                transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                boxShadow: isOpen ? '0 4px 20px rgba(37,99,235,0.12)' : '0 4px 14px rgba(0,0,0,0.3)',
+            }}
+        >
+            {/* Top accent bar */}
+            <div style={{
+                height: 3,
+                background: isOpen
+                    ? 'linear-gradient(90deg, #2563eb, #7c3aed)'
+                    : 'linear-gradient(90deg, #475569, #334155)',
+            }} />
+
+            <div style={{ padding: '20px 20px 16px' }}>
+                {/* Header row */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                            <MapPin size={14} color="var(--accent-blue)" strokeWidth={2.5} />
+                            <Text strong style={{ color: 'var(--text-primary)', fontSize: 15, lineHeight: 1.3 }}>
+                                {sefer.title}
+                            </Text>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <Calendar size={12} color="var(--text-secondary)" />
+                            <Text style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+                                {startDate}{endDate ? ` → ${endDate}` : ' → devam ediyor'}
+                            </Text>
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                        <span style={{
+                            padding: '2px 10px',
+                            borderRadius: 20,
+                            fontSize: 11,
+                            fontWeight: 700,
+                            letterSpacing: 0.3,
+                            background: isOpen ? 'rgba(37,99,235,0.15)' : 'rgba(71,85,105,0.3)',
+                            color: isOpen ? '#60a5fa' : '#94a3b8',
+                            border: `1px solid ${isOpen ? 'rgba(37,99,235,0.3)' : 'rgba(71,85,105,0.3)'}`,
+                        }}>
+                            {isOpen ? 'AÇIK' : 'KAPALI'}
+                        </span>
+                    </div>
+                </div>
+
+                {/* Stats row - Stacked vertically for better readability and responsiveness */}
+                {isSummaryLoading ? (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                        <Skeleton.Button active style={{ width: '100%', height: 44, borderRadius: 10 }} />
+                        <Skeleton.Button active style={{ width: '100%', height: 44, borderRadius: 10 }} />
+                        <Skeleton.Button active style={{ width: '100%', height: 44, borderRadius: 10 }} />
+                    </div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                        {/* Income line */}
+                        <div style={{
+                            padding: '10px 14px',
+                            background: 'rgba(34,197,94,0.06)',
+                            border: '1px solid rgba(34,197,94,0.12)',
+                            borderRadius: 12,
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(34,197,94,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <TrendingUp size={14} color="var(--income)" strokeWidth={2.5} />
+                                </div>
+                                <Text style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>Toplam Gelir</Text>
+                            </div>
+                            <Text strong style={{ fontSize: 14, color: 'var(--income)' }}>
+                                {formatCurrency(summary?.totalIncomeTRY ?? 0, 'TRY')}
+                            </Text>
+                        </div>
+
+                        {/* Expense line */}
+                        <div style={{
+                            padding: '10px 14px',
+                            background: 'rgba(239,68,68,0.06)',
+                            border: '1px solid rgba(239,68,68,0.12)',
+                            borderRadius: 12,
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{ width: 24, height: 24, borderRadius: '50%', background: 'rgba(239,68,68,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <TrendingDown size={14} color="var(--expense)" strokeWidth={2.5} />
+                                </div>
+                                <Text style={{ fontSize: 13, color: 'var(--text-secondary)', fontWeight: 500 }}>Toplam Gider</Text>
+                            </div>
+                            <Text strong style={{ fontSize: 14, color: 'var(--expense)' }}>
+                                {formatCurrency(summary?.totalExpenseTRY ?? 0, 'TRY')}
+                            </Text>
+                        </div>
+
+                        {/* Net Profit line */}
+                        <div style={{
+                            padding: '12px 14px',
+                            background: isPositive ? 'rgba(34,197,94,0.12)' : 'rgba(239,68,68,0.1)',
+                            border: `1px solid ${isPositive ? 'rgba(34,197,94,0.25)' : 'rgba(239,68,68,0.2)'}`,
+                            borderRadius: 12,
+                            display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                            boxShadow: isPositive ? '0 4px 12px rgba(34,197,94,0.1)' : 'none'
+                        }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                <div style={{
+                                    width: 24, height: 24, borderRadius: '50%',
+                                    background: isPositive ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                                }}>
+                                    {isPositive ? <TrendingUp size={14} strokeWidth={3} /> : <TrendingDown size={14} strokeWidth={3} />}
+                                </div>
+                                <Text strong style={{ fontSize: 13, color: 'var(--text-primary)', fontWeight: 700 }}>Net Kar</Text>
+                            </div>
+                            <Text strong style={{ fontSize: 15, color: isPositive ? 'var(--income)' : 'var(--expense)', fontWeight: 800 }}>
+                                {isPositive ? '+' : ''}{formatCurrency(net, 'TRY')}
+                            </Text>
+                        </div>
+                    </div>
+                )}
+
+                {/* Actions */}
+                <div style={{ display: 'flex', gap: 8 }}>
+                    <button
+                        onClick={() => onEdit(sefer)}
+                        style={{
+                            flex: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            width: 36, height: 36,
+                            background: 'rgba(255,255,255,0.04)',
+                            border: '1px solid rgba(255,255,255,0.08)',
+                            borderRadius: 8,
+                            cursor: 'pointer',
+                            color: 'var(--text-secondary)',
+                            transition: 'all 0.15s',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#fff'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; e.currentTarget.style.color = 'var(--text-secondary)'; }}
+                    >
+                        <Edit size={14} />
+                    </button>
+                    <button
+                        onClick={() => {
+                            Modal.confirm({
+                                title: 'Seferi Sil',
+                                content: 'Bu seferi silmek istediğinize emin misiniz? İşlem verileri etkilenebilir.',
+                                okText: 'Evet, Sil',
+                                okButtonProps: { danger: true },
+                                cancelText: 'İptal',
+                                onOk: () => onDelete(sefer.id),
+                            });
+                        }}
+                        style={{
+                            flex: 0,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            width: 36, height: 36,
+                            background: 'rgba(239,68,68,0.05)',
+                            border: '1px solid rgba(239,68,68,0.1)',
+                            borderRadius: 8,
+                            cursor: 'pointer',
+                            color: 'rgba(239,68,68,0.7)',
+                            transition: 'all 0.15s',
+                        }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.12)'; e.currentTarget.style.color = '#ef4444'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(239,68,68,0.05)'; e.currentTarget.style.color = 'rgba(239,68,68,0.7)'; }}
+                    >
+                        <Trash2 size={14} />
+                    </button>
+                    <Link
+                        to={`/vehicles/${vehicleId}/sefer/${sefer.id}`}
+                        style={{ flex: 1, textDecoration: 'none' }}
+                    >
+                        <button
+                            style={{
+                                width: '100%', height: 36,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                                background: 'linear-gradient(135deg, rgba(37,99,235,0.15), rgba(124,58,237,0.15))',
+                                border: '1px solid rgba(37,99,235,0.25)',
+                                borderRadius: 8,
+                                cursor: 'pointer',
+                                color: '#93c5fd',
+                                fontWeight: 600,
+                                fontSize: 13,
+                                transition: 'all 0.15s',
+                            }}
+                            onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(37,99,235,0.25), rgba(124,58,237,0.25))';
+                                e.currentTarget.style.borderColor = 'rgba(37,99,235,0.45)';
+                            }}
+                            onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'linear-gradient(135deg, rgba(37,99,235,0.15), rgba(124,58,237,0.15))';
+                                e.currentTarget.style.borderColor = 'rgba(37,99,235,0.25)';
+                            }}
+                        >
+                            Seferi Gör <ArrowRight size={13} />
+                        </button>
+                    </Link>
+                </div>
+            </div>
+        </div>
+    );
+});
+
+/* ─── Main Page ───────────────────────────────────────────────────────────── */
+
 const VehicleDetailPage = () => {
     const { vehicleId } = useParams<{ vehicleId: string }>();
     const navigate = useNavigate();
-    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
-    const [isVehicleEditOpen, setIsVehicleEditOpen] = useState(false);
-    const [vehicleForm] = Form.useForm();
-    const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
-    const [filters, setFilters] = useState<TransactionFilters>({ type: 'ALL', dateRange: null });
-    const [isSaving, setIsSaving] = useState(false);
-
-    const [form] = Form.useForm();
     const queryClient = useQueryClient();
 
-    // Live rate map for the form's currency auto-fill
-    const { data: rates, isError: ratesError } = useExchangeRates();
+    const [isVehicleEditOpen, setIsVehicleEditOpen] = useState(false);
+    const [isSeferDrawerOpen, setIsSeferDrawerOpen] = useState(false);
+    const [editingSefer, setEditingSefer] = useState<Sefer | null>(null);
 
-    const amount = Form.useWatch('amount', form);
-    const currencyCode = Form.useWatch('currencyCode', form) as CurrencyCode | undefined;
-    const selectedRate = Form.useWatch('tcmbExchangeRate', form);
+    const [vehicleForm] = Form.useForm();
+    const [seferForm] = Form.useForm();
 
+    /* ── Queries ── */
     const { data: vehicle, isLoading: isLoadingVehicle } = useQuery({
         queryKey: ['vehicle', vehicleId],
         queryFn: () => getVehicle(vehicleId!),
         enabled: !!vehicleId,
     });
 
-    const { data: summary } = useQuery({
-        queryKey: ['vehicleSummary', vehicleId],
-        queryFn: () => getVehicleSummary(vehicleId!),
-        enabled: !!vehicleId,
-    });
-
-    const {
-        data: transactionsInfiniteData,
-        isLoading: isLoadingTransactions,
-        isFetchingNextPage,
-        hasNextPage,
-        fetchNextPage
-    } = useInfiniteQuery({
-        queryKey: ['transactions', vehicleId, filters],
-        queryFn: ({ pageParam }: { pageParam: any }) => getTransactions(vehicleId!, { pageSize: 20, cursor: pageParam }, filters),
-        initialPageParam: null as any,
-        getNextPageParam: (lastPage: any) => lastPage.nextCursor,
+    const { data: sefers = [], isLoading: isLoadingSefers } = useQuery({
+        queryKey: ['sefers', vehicleId],
+        queryFn: () => getSefersByVehicle(vehicleId!),
         enabled: !!vehicleId,
         staleTime: 30 * 1000,
     });
 
-    const transactions = useMemo(() =>
-        transactionsInfiniteData?.pages.flatMap((page: any) => page.items) || [],
-        [transactionsInfiniteData]);
+    const openSefers = useMemo(() => sefers.filter((s) => s.status === 'OPEN'), [sefers]);
+    const closedSefers = useMemo(() => sefers.filter((s) => s.status === 'CLOSED'), [sefers]);
 
-    const txType = Form.useWatch('type', form);
-    const { data: categories, isLoading: isLoadingCategories } = useCategories();
-
-    const categoriesMap = useMemo(() => {
-        if (!categories) return {};
-        return categories.reduce((acc, cat) => ({ ...acc, [cat.id]: cat }), {} as Record<string, any>);
-    }, [categories]);
-
-    const filteredCategories = useMemo(() => {
-        const currentType = txType || form.getFieldValue('type') || 'INCOME';
-        return categories?.filter(c => c.type === currentType) || [];
-    }, [categories, txType, form]);
-
-    const topExpenseCategory = useMemo(() => {
-        if (!transactions || !categories) return null;
-        const expenses = transactions.filter(t => t.type === 'EXPENSE');
-        const map: Record<string, number> = {};
-        expenses.forEach(t => {
-            if (t.categoryId) map[t.categoryId] = (map[t.categoryId] || 0) + (t.amountTRY || 0);
-        });
-        const arr = Object.entries(map).sort((a, b) => b[1] - a[1]);
-        if (arr.length === 0) return null;
-        const bestCatId = arr[0][0];
-        const bestAmount = arr[0][1];
-        const cat = categoriesMap[bestCatId];
-        if (!cat) return null;
-        return { name: cat.name, amount: bestAmount, color: cat.color };
-    }, [transactions, categoriesMap, categories]);
-
-    // Auto-fill exchange rate when currency changes
-    useEffect(() => {
-        if (!currencyCode) return;
-        if (currencyCode === 'TRY') {
-            form.setFieldsValue({ tcmbExchangeRate: 1 });
-        } else if (rates && rates[currencyCode]) {
-            form.setFieldsValue({ tcmbExchangeRate: rates[currencyCode] });
-        }
-    }, [currencyCode, rates, form]);
-    // Task 1: Default Category Logic (Create Mode Only)
-    useEffect(() => {
-        const isEditMode = !!editingTransaction;
-        if (isEditMode) return;
-        if (!categories?.length || !txType) return;
-
-        if (txType === 'INCOME') {
-            const navlun = categories.find(c => c.name === 'Navlun' && c.type === 'INCOME');
-            form.setFieldsValue({
-                categoryId: navlun?.id ?? categories.find(c => c.type === 'INCOME')?.id ?? ''
-            });
-        }
-
-        if (txType === 'EXPENSE') {
-            const harcirah = categories.find(c => c.name === 'Harçrah' && c.type === 'EXPENSE');
-            form.setFieldsValue({
-                categoryId: harcirah?.id ?? categories.find(c => c.type === 'EXPENSE')?.id ?? ''
-            });
-        }
-    }, [txType, categories, editingTransaction, form]);
-
-    const amountTRY = useMemo(() => {
-        if (amount && selectedRate) return amount * selectedRate;
-        return 0;
-    }, [amount, selectedRate]);
-
-    // ── Mutations ─────────────────────────────────────────────────────────────
-
-    const createMutation = useMutation({
-        mutationFn: createTransaction,
-        onSuccess: () => {
-            showSuccess('İşlem başarıyla kaydedildi');
-            invalidateAll();
-            handleClose();
-        },
-        onError: (err) => {
-            showError(err || 'İşlem sırasında hata oluştu');
-        }
-    });
-
-    const updateMutation = useMutation({
-        mutationFn: ({ id, data }: { id: string; data: CreateTransactionDTO }) => updateTransaction(id, data),
-        onSuccess: () => {
-            showSuccess('İşlem güncellendi');
-            invalidateAll();
-            handleClose();
-        },
-        onError: (err) => {
-            showError(err || 'İşlem güncellenirken hata oluştu');
-        }
-    });
-
-    const deleteMutation = useMutation({
-        mutationFn: deleteTransaction,
-        onSuccess: () => {
-            showSuccess('İşlem silindi');
-            invalidateAll();
-        },
-        onError: (err) => {
-            showError(err);
-        }
-    });
-
+    /* ── Mutations ── */
     const deleteVehicleMutation = useMutation({
         mutationFn: deleteVehicle,
         onSuccess: () => {
             showSuccess('Araç silindi');
             navigate('/vehicles');
         },
-        onError: (err) => {
-            showError(err);
-        }
+        onError: (err) => showError(err),
     });
 
     const updateVehicleMutation = useMutation({
         mutationFn: (values: any) => {
             const payload = {
                 ...values,
-                insuranceExpiryDate: values.insuranceExpiryDate ? values.insuranceExpiryDate.toDate() : null,
-                inspectionExpiryDate: values.inspectionExpiryDate ? values.inspectionExpiryDate.toDate() : null,
+                insuranceExpiryDate: values.insuranceExpiryDate?.toDate() ?? null,
+                inspectionExpiryDate: values.inspectionExpiryDate?.toDate() ?? null,
             };
             return updateVehicle(vehicleId!, payload);
         },
@@ -202,146 +306,128 @@ const VehicleDetailPage = () => {
             queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
             setIsVehicleEditOpen(false);
         },
-        onError: (err) => {
-            showError(err || 'Araç güncellenirken hata oluştu');
-        }
+        onError: (err) => showError(err),
     });
 
-    const invalidateAll = () => {
-        queryClient.invalidateQueries({ queryKey: ['vehicleSummary', vehicleId] });
-        queryClient.invalidateQueries({ queryKey: ['transactions', vehicleId] });
-        queryClient.invalidateQueries({ queryKey: ['dashboardData'] });
-        queryClient.invalidateQueries({ queryKey: ['dashboard'] }); // backward compatibility if any
-        queryClient.invalidateQueries({ queryKey: ['vehicles', 'analytics', 'last30days'] });
-    };
+    const createSeferMutation = useMutation({
+        mutationFn: createSefer,
+        onSuccess: () => {
+            showSuccess('Sefer oluşturuldu');
+            queryClient.invalidateQueries({ queryKey: ['sefers', vehicleId] });
+            closeSeferDrawer();
+        },
+        onError: (err) => showError(err),
+    });
 
-    // ── Drawer open/close ─────────────────────────────────────────────────────
+    const updateSeferMutation = useMutation({
+        mutationFn: ({ id, data }: { id: string; data: any }) => updateSefer(id, data),
+        onSuccess: () => {
+            showSuccess('Sefer güncellendi');
+            queryClient.invalidateQueries({ queryKey: ['sefers', vehicleId] });
+            closeSeferDrawer();
+        },
+        onError: (err) => showError(err),
+    });
 
-    const handleOpen = (transaction?: Transaction) => {
-        if (transaction) {
-            setEditingTransaction(transaction);
-            form.setFieldsValue({
-                ...transaction,
-                date: dayjs((transaction.date as any).toDate ? (transaction.date as any).toDate() : transaction.date),
+    const deleteSeferMutation = useMutation({
+        mutationFn: deleteSefer,
+        onSuccess: () => {
+            showSuccess('Sefer silindi');
+            queryClient.invalidateQueries({ queryKey: ['sefers', vehicleId] });
+        },
+        onError: (err) => showError(err),
+    });
+
+    /* ── Sefer Drawer ── */
+    const openSeferDrawer = (sefer?: Sefer) => {
+        if (sefer) {
+            setEditingSefer(sefer);
+            seferForm.setFieldsValue({
+                title: sefer.title,
+                description: sefer.description,
+                status: sefer.status,
+                startDate: sefer.startDate?.toDate ? dayjs(sefer.startDate.toDate()) : null,
+                endDate: sefer.endDate?.toDate ? dayjs((sefer.endDate as any).toDate()) : null,
             });
         } else {
-            setEditingTransaction(null);
-            form.resetFields();
-            form.setFieldsValue({ date: dayjs(), currencyCode: 'TRY', tcmbExchangeRate: 1, type: 'INCOME' });
+            setEditingSefer(null);
+            seferForm.resetFields();
+            seferForm.setFieldsValue({ status: 'OPEN', startDate: dayjs() });
         }
-        setIsDrawerOpen(true);
+        setIsSeferDrawerOpen(true);
     };
 
-    const handleClose = () => {
-        setIsDrawerOpen(false);
-        setEditingTransaction(null);
-        form.resetFields();
-        setIsSaving(false);
+    const closeSeferDrawer = () => {
+        setIsSeferDrawerOpen(false);
+        setEditingSefer(null);
+        seferForm.resetFields();
     };
 
-    // ── Form submit — exchange rate frozen at save time ───────────────────────
-
-    const onFinish = async (values: any) => {
-        const currency: CurrencyCode = values.currencyCode;
-
-        setIsSaving(true);
-
-        // Determine frozen exchange rate
-        let frozenRate: number;
-        if (currency === 'TRY') {
-            frozenRate = 1;
-        } else {
-            // If user has manually entered a value, prefer that.
-            // Otherwise, fetch a fresh rate from the Cloud Function at save time
-            // to ensure it is frozen at the moment of the transaction.
-            const manualRate = values.tcmbExchangeRate;
-            if (manualRate && manualRate > 0) {
-                frozenRate = manualRate;
-            } else {
-                try {
-                    const ratesResponse = await getLatestExchangeRates();
-                    const fetchedRate = ratesResponse[currency] as number;
-                    if (!fetchedRate) {
-                        throw new Error(`${currency} için kur alınamadı`);
-                    }
-                    frozenRate = fetchedRate;
-                } catch (err) {
-                    showError(err || 'Kur bilgisi alınamadı');
-                    setIsSaving(false);
-                    return; // Prevent save if currency is not TRY and rate is unavailable
-                }
-            }
-        }
-
-        // Use the selected date but append current time to ensure proper ordering for same-day transactions
-        const now = dayjs();
-        const dateWithTime = values.date
-            .hour(now.hour())
-            .minute(now.minute())
-            .second(now.second())
-            .toDate();
-
-        const payload: CreateTransactionDTO = {
+    const onSeferFinish = (values: any) => {
+        // Build payload without any `undefined` values - Firestore rejects them
+        const payload: any = {
             vehicleId: vehicleId!,
-            categoryId: values.categoryId,
-            type: values.type,
-            date: dateWithTime,
-            description: values.description ?? null,
-            amount: values.amount,
-            currencyCode: currency,
-            tcmbExchangeRate: frozenRate,
-            amountTRY: values.amount * frozenRate,
+            title: values.title as string,
+            status: values.status,
+            startDate: values.startDate.toDate(),
+            endDate: values.endDate ? values.endDate.toDate() : null,
         };
-
-        if (editingTransaction) {
-            updateMutation.mutate({ id: editingTransaction.id, data: payload });
-        } else {
-            createMutation.mutate(payload);
+        // Only include description if provided (avoids Firestore "undefined" error)
+        if (values.description?.trim()) {
+            payload.description = values.description.trim();
         }
 
-        setIsSaving(false);
+        if (editingSefer) {
+            updateSeferMutation.mutate({ id: editingSefer.id, data: payload });
+        } else {
+            createSeferMutation.mutate(payload);
+        }
     };
 
-    // ── Render ────────────────────────────────────────────────────────────────
+    /* ── Render ── */
+    if (isLoadingVehicle) {
+        return (
+            <div style={{ height: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <Spin size="large" />
+            </div>
+        );
+    }
 
-    if (isLoadingVehicle) return (
-        <div style={{ height: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <Spin size="large" />
-        </div>
-    );
-    if (!vehicle) return (
-        <div style={{ color: 'var(--text-primary)', textAlign: 'center', padding: 40 }}>
-            Araç bulunamadı.
-        </div>
-    );
-
-    const netValue = summary?.netTRY || 0;
-    const isPositive = netValue >= 0;
+    if (!vehicle) {
+        return (
+            <div style={{ color: 'var(--text-primary)', textAlign: 'center', padding: 40 }}>
+                Araç bulunamadı.
+            </div>
+        );
+    }
 
     return (
-        <div className="space-y-6 animated-list-item stagger-1">
-            {/* Header Navigation */}
+        <div className="animated-list-item stagger-1">
+            {/* Navigation */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
                 <Button
                     type="text"
                     icon={<ChevronLeft size={20} />}
                     onClick={() => navigate('/vehicles')}
-                    style={{ color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', width: 40, height: 40, borderRadius: '50%' }}
+                    style={{
+                        color: 'var(--text-secondary)',
+                        background: 'rgba(255,255,255,0.05)',
+                        width: 40, height: 40, borderRadius: '50%'
+                    }}
                 />
                 <Text style={{ color: 'var(--text-secondary)', fontSize: 16 }}>Geri Dön</Text>
             </div>
 
-            {/* Minimal Header Section */}
-            <div className="hero-card" style={{
-                padding: '24px 24px',
+            {/* Vehicle Hero */}
+            <div style={{
+                padding: '24px',
                 background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8))',
                 borderRadius: 20,
+                border: '1px solid var(--border-light)',
+                marginBottom: 32,
                 position: 'relative',
-                overflow: 'hidden',
-                border: '1px solid var(--border-light)'
             }}>
-                {/* Actions */}
-                <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 8, zIndex: 10 }}>
+                <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 8 }}>
                     <Button
                         type="text"
                         icon={<Edit size={16} />}
@@ -354,13 +440,7 @@ const VehicleDetailPage = () => {
                             });
                             setIsVehicleEditOpen(true);
                         }}
-                        style={{
-                            color: 'rgba(255,255,255,0.6)',
-                            background: 'rgba(255,255,255,0.05)',
-                            borderRadius: '50%',
-                            width: 32, height: 32,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center'
-                        }}
+                        style={{ color: 'rgba(255,255,255,0.6)', background: 'rgba(255,255,255,0.05)', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                     />
                     <Popconfirm
                         title="Bu aracı silmek istediğinize emin misiniz?"
@@ -372,226 +452,136 @@ const VehicleDetailPage = () => {
                         <Button
                             type="text"
                             icon={<Trash2 size={16} />}
-                            style={{
-                                color: 'rgba(239, 68, 68, 0.6)',
-                                background: 'rgba(239, 68, 68, 0.05)',
-                                borderRadius: '50%',
-                                width: 32, height: 32,
-                                display: 'flex', alignItems: 'center', justifyContent: 'center'
-                            }}
+                            style={{ color: 'rgba(239, 68, 68, 0.6)', background: 'rgba(239, 68, 68, 0.05)', borderRadius: '50%', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         />
                     </Popconfirm>
                 </div>
 
-                <div style={{ position: 'relative', zIndex: 2 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4, flexWrap: 'wrap' }}>
-                        <Title level={3} style={{ color: 'white', margin: 0, fontWeight: 700 }}>{vehicle.plate}</Title>
-                        <div style={{
-                            background: isPositive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                            color: isPositive ? '#4ade80' : '#f87171',
-                            padding: '2px 10px',
-                            borderRadius: '6px',
-                            fontWeight: 700,
-                            fontSize: 12,
-                            border: `1px solid ${isPositive ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
-                        }}>
-                            NET: {isPositive ? '+' : '-'}{formatCurrency(Math.abs(netValue), 'TRY')}
-                        </div>
-                    </div>
-                    <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>{vehicle.name}</Text>
+                <Title level={3} style={{ color: 'white', margin: '0 0 4px 0', fontWeight: 700 }}>{vehicle.plate}</Title>
+                <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>{vehicle.name}</Text>
 
-                    <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
-                        <div style={{
-                            background: 'rgba(255,255,255,0.03)',
-                            border: '1px solid rgba(255,255,255,0.05)',
-                            padding: '10px 16px',
-                            borderRadius: 12,
-                            flex: '1 1 140px'
-                        }}>
-                            <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>Gelir</Text>
-                            <Title level={5} style={{ color: 'var(--income)', margin: 0, fontWeight: 700 }}>+{formatCurrency(summary?.totalIncomeTRY || 0, 'TRY')}</Title>
-                        </div>
-                        <div style={{
-                            background: 'rgba(255,255,255,0.03)',
-                            border: '1px solid rgba(255,255,255,0.05)',
-                            padding: '10px 16px',
-                            borderRadius: 12,
-                            flex: '1 1 140px'
-                        }}>
-                            <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>Gider</Text>
-                            <Title level={5} style={{ color: 'var(--expense)', margin: 0, fontWeight: 700 }}>-{formatCurrency(summary?.totalExpenseTRY || 0, 'TRY')}</Title>
-                        </div>
-                        {topExpenseCategory && (
-                            <div style={{
-                                background: 'rgba(255,255,255,0.03)',
-                                border: '1px solid rgba(255,255,255,0.05)',
-                                padding: '10px 16px',
-                                borderRadius: 12,
-                                display: 'flex',
-                                flexDirection: 'column',
-                                flex: '1 1 140px'
-                            }}>
-                                <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>En Çok Gider</Text>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
-                                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: topExpenseCategory.color }} />
-                                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{topExpenseCategory.name}</Text>
-                                </div>
-                                <Text style={{ color: 'var(--expense)', fontSize: 15, fontWeight: 700, marginTop: 4 }}>
-                                    {formatCurrency(topExpenseCategory.amount, 'TRY')}
+                <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
+                    <div style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', padding: '8px 16px', borderRadius: 10 }}>
+                        <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, display: 'block' }}>Toplam Sefer</Text>
+                        <Text strong style={{ color: '#fff', fontSize: 18 }}>{sefers.length}</Text>
+                    </div>
+                    <div style={{ background: 'rgba(37,99,235,0.1)', border: '1px solid rgba(37,99,235,0.2)', padding: '8px 16px', borderRadius: 10 }}>
+                        <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, display: 'block' }}>Aktif Sefer</Text>
+                        <Text strong style={{ color: '#60a5fa', fontSize: 18 }}>{openSefers.length}</Text>
+                    </div>
+                </div>
+            </div>
+
+            {/* Sefer Section Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+                <div>
+                    <Title level={4} style={{ color: 'var(--text-primary)', margin: 0 }}>Seferler</Title>
+                    <Text style={{ color: 'var(--text-secondary)', fontSize: 13 }}>Her seferin gelir/gider ve net kar bilgisini görün</Text>
+                </div>
+                <button
+                    onClick={() => openSeferDrawer()}
+                    style={{
+                        display: 'flex', alignItems: 'center', gap: 8,
+                        padding: '0 20px', height: 42,
+                        background: 'var(--accent-gradient)',
+                        border: 'none', borderRadius: 10,
+                        color: 'white', fontWeight: 700, fontSize: 14,
+                        cursor: 'pointer',
+                        boxShadow: '0 4px 14px rgba(37,99,235,0.35)',
+                        transition: 'all 0.15s',
+                        flexShrink: 0,
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 20px rgba(37,99,235,0.5)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 4px 14px rgba(37,99,235,0.35)'; }}
+                >
+                    <Plus size={16} strokeWidth={2.5} />
+                    Yeni Sefer
+                </button>
+            </div>
+
+            {/* Sefer Grid */}
+            {isLoadingSefers ? (
+                <Row gutter={[20, 20]}>
+                    {[1, 2, 3].map((i) => (
+                        <Col xs={24} sm={12} lg={8} key={i}>
+                            <Skeleton active paragraph={{ rows: 4 }} style={{ padding: 20, background: 'rgba(30,41,59,0.5)', borderRadius: 16 }} />
+                        </Col>
+                    ))}
+                </Row>
+            ) : sefers.length === 0 ? (
+                <div style={{
+                    textAlign: 'center', padding: '60px 24px',
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px dashed rgba(255,255,255,0.1)',
+                    borderRadius: 16,
+                }}>
+                    <div style={{ fontSize: 40, marginBottom: 12 }}>🗺️</div>
+                    <Title level={5} style={{ color: 'var(--text-secondary)', fontWeight: 500 }}>
+                        Henüz sefer eklenmemiş
+                    </Title>
+                    <Text style={{ color: 'var(--text-secondary)', fontSize: 13 }}>
+                        İlk seferi ekleyerek finansal takibe başlayın
+                    </Text>
+                    <div style={{ marginTop: 20 }}>
+                        <Button type="primary" icon={<Plus size={14} />} onClick={() => openSeferDrawer()}
+                            style={{ background: 'var(--accent-gradient)', border: 'none' }}>
+                            Sefer Ekle
+                        </Button>
+                    </div>
+                </div>
+            ) : (
+                <>
+                    {/* Open sefers */}
+                    {openSefers.length > 0 && (
+                        <>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#60a5fa' }} />
+                                <Text style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                    Aktif Seferler ({openSefers.length})
                                 </Text>
                             </div>
-                        )}
-                    </div>
-                </div>
-            </div>
+                            <Row gutter={[20, 20]} style={{ marginBottom: closedSefers.length > 0 ? 32 : 0 }}>
+                                {openSefers.map((sefer, i) => (
+                                    <Col xs={24} sm={12} lg={8} key={sefer.id}>
+                                        <SeferCard
+                                            sefer={sefer}
+                                            vehicleId={vehicleId!}
+                                            onEdit={openSeferDrawer}
+                                            onDelete={(id) => deleteSeferMutation.mutate(id)}
+                                            index={i}
+                                        />
+                                    </Col>
+                                ))}
+                            </Row>
+                        </>
+                    )}
 
-            {/* Transactions Section */}
-            <div style={{ margin: '32px 0 16px 0' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12 }}>
-                    <Title level={4} style={{ color: 'var(--text-primary)', margin: 0, fontWeight: 600 }}>İşlem Geçmişi</Title>
-                    <DateFilter
-                        value={filters.dateRange}
-                        onChange={(dates) => setFilters(prev => ({ ...prev, dateRange: dates }))}
-                    />
-                </div>
-
-                {/* Exchange rate error banner */}
-                {ratesError && !rates && (
-                    <Alert
-                        message="Döviz kuru bilgisi şu an alınamıyor. TRY dışı işlem ekleyemezsiniz."
-                        type="warning"
-                        showIcon
-                        style={{ marginBottom: 12, borderRadius: 10 }}
-                        closable
-                    />
-                )}
-
-                {/* Full-width pill filter + CTA row */}
-                <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
-                    {/* Pill tab bar */}
-                    <div style={{
-                        flex: 1,
-                        display: 'flex',
-                        background: 'rgba(255,255,255,0.04)',
-                        border: '1px solid rgba(255,255,255,0.07)',
-                        borderRadius: 12,
-                        padding: 4,
-                        gap: 0,
-                    }}>
-                        {(['ALL', 'INCOME', 'EXPENSE'] as const).map((val) => {
-                            const labels: Record<string, string> = { ALL: 'Hepsi', INCOME: 'Gelir', EXPENSE: 'Gider' };
-                            const active = filters.type === val;
-                            return (
-                                <button
-                                    key={val}
-                                    onClick={() => setFilters(prev => ({ ...prev, type: val as any }))}
-                                    style={{
-                                        flex: 1,
-                                        height: 36,
-                                        border: 'none',
-                                        borderRadius: 9,
-                                        cursor: 'pointer',
-                                        fontWeight: active ? 700 : 500,
-                                        fontSize: 13,
-                                        transition: 'all 0.15s ease',
-                                        background: active
-                                            ? val === 'INCOME'
-                                                ? 'rgba(34,197,94,0.18)'
-                                                : val === 'EXPENSE'
-                                                    ? 'rgba(239,68,68,0.18)'
-                                                    : 'rgba(255,255,255,0.1)'
-                                            : 'transparent',
-                                        color: active
-                                            ? val === 'INCOME'
-                                                ? 'var(--income)'
-                                                : val === 'EXPENSE'
-                                                    ? 'var(--expense)'
-                                                    : 'var(--text-primary)'
-                                            : 'var(--text-secondary)',
-                                        boxShadow: active ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
-                                    }}
-                                >
-                                    {labels[val]}
-                                </button>
-                            );
-                        })}
-                    </div>
-
-                    {/* CTA Button */}
-                    <button
-                        onClick={() => handleOpen()}
-                        style={{
-                            height: 44,
-                            paddingLeft: 20,
-                            paddingRight: 20,
-                            borderRadius: 12,
-                            border: 'none',
-                            background: 'var(--accent-gradient)',
-                            color: 'white',
-                            fontWeight: 700,
-                            fontSize: 14,
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: 8,
-                            whiteSpace: 'nowrap',
-                            boxShadow: '0 4px 14px rgba(37,99,235,0.35)',
-                            transition: 'all 0.15s ease',
-                            flexShrink: 0,
-                        }}
-                        onMouseEnter={(e) => {
-                            e.currentTarget.style.transform = 'translateY(-2px)';
-                            e.currentTarget.style.boxShadow = '0 8px 20px rgba(37,99,235,0.5)';
-                        }}
-                        onMouseLeave={(e) => {
-                            e.currentTarget.style.transform = 'translateY(0)';
-                            e.currentTarget.style.boxShadow = '0 4px 14px rgba(37,99,235,0.35)';
-                        }}
-                    >
-                        <Plus size={16} strokeWidth={2.5} />
-                        Yeni İşlem
-                    </button>
-                </div>
-            </div>
-
-            {/* Transaction Cards List */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {isLoadingTransactions ? (
-                    <Skeleton active />
-                ) : transactions.length === 0 ? (
-                    <EmptyState onAdd={() => handleOpen()} />
-                ) : (
-                    <>
-                        {transactions.map((tx, idx) => (
-                            <TransactionCard
-                                key={tx.id}
-                                transaction={tx}
-                                categoryName={categoriesMap[tx.categoryId]?.name}
-                                index={idx}
-                                onEdit={handleOpen}
-                                onDelete={(id) => deleteMutation.mutate(id)}
-                            />
-                        ))}
-
-                        {hasNextPage && (
-                            <Button
-                                onClick={() => fetchNextPage()}
-                                loading={isFetchingNextPage}
-                                style={{
-                                    marginTop: 16,
-                                    height: 44,
-                                    borderRadius: 12,
-                                    background: 'rgba(255,255,255,0.05)',
-                                    color: 'var(--text-secondary)',
-                                    border: '1px solid rgba(255,255,255,0.1)'
-                                }}
-                            >
-                                {isFetchingNextPage ? 'Yükleniyor...' : 'Daha Fazla Yükle'}
-                            </Button>
-                        )}
-                    </>
-                )}
-            </div>
+                    {/* Closed sefers */}
+                    {closedSefers.length > 0 && (
+                        <>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
+                                <div style={{ width: 8, height: 8, borderRadius: '50%', background: '#475569' }} />
+                                <Text style={{ color: 'var(--text-secondary)', fontSize: 12, fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                                    Geçmiş Seferler ({closedSefers.length})
+                                </Text>
+                            </div>
+                            <Row gutter={[20, 20]}>
+                                {closedSefers.map((sefer, i) => (
+                                    <Col xs={24} sm={12} lg={8} key={sefer.id}>
+                                        <SeferCard
+                                            sefer={sefer}
+                                            vehicleId={vehicleId!}
+                                            onEdit={openSeferDrawer}
+                                            onDelete={(id) => deleteSeferMutation.mutate(id)}
+                                            index={i}
+                                        />
+                                    </Col>
+                                ))}
+                            </Row>
+                        </>
+                    )}
+                </>
+            )}
 
             {/* Vehicle Edit Drawer */}
             <Drawer
@@ -602,180 +592,87 @@ const VehicleDetailPage = () => {
                 width={window.innerWidth > 500 ? 500 : '100%'}
                 maskStyle={{ backdropFilter: 'blur(8px)' }}
             >
-                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 24 }}>
-                    <div style={{ flex: 1 }}>
-                        <Form
-                            form={vehicleForm}
-                            layout="vertical"
-                            onFinish={(values) => updateVehicleMutation.mutate(values)}
-                            size="large"
-                        >
-                            <Form.Item name="name" label="Araç Takma Adı" rules={[{ required: true, message: 'Araç adı zorunludur' }]}>
-                                <Input placeholder="Örn: 2024 Model Corolla" />
-                            </Form.Item>
-                            <Form.Item name="plate" label="Araç Plakası" rules={[{ required: true, message: 'Plaka zorunludur' }]}>
-                                <Input placeholder="Örn: 34 ABC 123" />
-                            </Form.Item>
-                            <Row gutter={16}>
-                                <Col span={12}>
-                                    <Form.Item name="insuranceExpiryDate" label="Sigorta Bitiş" rules={[{ required: true }]}>
-                                        <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
-                                    </Form.Item>
-                                </Col>
-                                <Col span={12}>
-                                    <Form.Item name="inspectionExpiryDate" label="Muayene Bitiş" rules={[{ required: true }]}>
-                                        <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
-                                    </Form.Item>
-                                </Col>
-                            </Row>
-                        </Form>
-                    </div>
-                    <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 20, display: 'flex', gap: 12 }}>
-                        <Button onClick={() => setIsVehicleEditOpen(false)} style={{ flex: 1, height: 50, borderRadius: 12 }}>Vazgeç</Button>
-                        <Button
-                            type="primary"
-                            onClick={() => vehicleForm.submit()}
-                            loading={updateVehicleMutation.isPending}
-                            style={{ flex: 2, height: 50, borderRadius: 12, background: 'var(--accent-gradient)', border: 'none' }}
-                        >
-                            Güncelle
-                        </Button>
-                    </div>
-                </div>
-            </Drawer>
-
-            {/* Transaction Drawer */}
-            <Drawer
-                title={editingTransaction ? 'İşlem Detayı Düzenle' : 'Yeni İşlem Ekle'}
-                width={480}
-                onClose={handleClose}
-                open={isDrawerOpen}
-                maskStyle={{ backdropFilter: 'blur(8px)' }}
-            >
-                <Form form={form} layout="vertical" onFinish={onFinish}>
-                    <Form.Item name="type" rules={[{ required: true }]} style={{ marginBottom: 16 }}>
-                        <Segmented
-                            block
-                            options={[
-                                { label: 'Gelir (+)', value: 'INCOME' },
-                                { label: 'Gider (-)', value: 'EXPENSE' },
-                            ]}
-                            style={{ padding: 4, background: 'rgba(255,255,255,0.05)' }}
-                        />
+                <Form form={vehicleForm} layout="vertical" onFinish={(v) => updateVehicleMutation.mutate(v)} size="large">
+                    <Form.Item name="name" label="Araç Takma Adı" rules={[{ required: true }]}>
+                        <Input placeholder="Örn: 2024 Model Corolla" />
                     </Form.Item>
-
-                    <Row gutter={12}>
+                    <Form.Item name="plate" label="Araç Plakası" rules={[{ required: true }]}>
+                        <Input placeholder="34 ABC 123" />
+                    </Form.Item>
+                    <Row gutter={16}>
                         <Col span={12}>
-                            <Form.Item name="categoryId" label="Kategori" rules={[{ required: true, message: 'Kategori seçin' }]} style={{ marginBottom: 16 }}>
-                                <Select
-                                    placeholder="Kategori Seçin"
-                                    disabled={isLoadingCategories || !filteredCategories?.length}
-                                    loading={isLoadingCategories}
-                                    options={filteredCategories?.map(cat => ({
-                                        label: (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                                <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: cat.color }} />
-                                                <span style={{ fontSize: 13 }}>{cat.name}</span>
-                                            </div>
-                                        ),
-                                        value: cat.id
-                                    }))}
-                                />
+                            <Form.Item name="insuranceExpiryDate" label="Sigorta Bitiş">
+                                <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
                             </Form.Item>
                         </Col>
                         <Col span={12}>
-                            <Form.Item name="date" label="İşlem Tarihi" rules={[{ required: true }]} style={{ marginBottom: 16 }}>
+                            <Form.Item name="inspectionExpiryDate" label="Muayene Bitiş">
                                 <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
                             </Form.Item>
                         </Col>
                     </Row>
+                </Form>
+                <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 20, display: 'flex', gap: 12 }}>
+                    <Button onClick={() => setIsVehicleEditOpen(false)} style={{ flex: 1, height: 50, borderRadius: 12 }}>Vazgeç</Button>
+                    <Button
+                        type="primary"
+                        onClick={() => vehicleForm.submit()}
+                        loading={updateVehicleMutation.isPending}
+                        style={{ flex: 2, height: 50, borderRadius: 12, background: 'var(--accent-gradient)', border: 'none' }}
+                    >Güncelle</Button>
+                </div>
+            </Drawer>
 
+            {/* Sefer Create/Edit Drawer */}
+            <Drawer
+                title={editingSefer ? 'Seferi Düzenle' : 'Yeni Sefer Ekle'}
+                placement="right"
+                onClose={closeSeferDrawer}
+                open={isSeferDrawerOpen}
+                width={window.innerWidth > 500 ? 480 : '100%'}
+                maskStyle={{ backdropFilter: 'blur(8px)' }}
+            >
+                <Form form={seferForm} layout="vertical" onFinish={onSeferFinish} size="large">
+                    <Form.Item name="title" label="Sefer Başlığı" rules={[{ required: true, message: 'Başlık zorunludur' }]}>
+                        <Input placeholder="Örn: İstanbul - Ankara" />
+                    </Form.Item>
+                    <Form.Item name="description" label="Açıklama (isteğe bağlı)">
+                        <Input.TextArea rows={2} placeholder="Kısa bir açıklama..." />
+                    </Form.Item>
                     <Row gutter={12}>
-                        <Col span={10}>
-                            <Form.Item name="currencyCode" label="Para Birimi" rules={[{ required: true }]} style={{ marginBottom: 16 }}>
-                                <Select>
-                                    <Select.Option value="TRY">TRY</Select.Option>
-                                    <Select.Option value="USD" disabled={ratesError && !rates?.USD}>
-                                        USD{ratesError && !rates?.USD ? ' (!)' : ''}
-                                    </Select.Option>
-                                    <Select.Option value="EUR" disabled={ratesError && !rates?.EUR}>
-                                        EUR{ratesError && !rates?.EUR ? ' (!)' : ''}
-                                    </Select.Option>
-                                </Select>
+                        <Col span={12}>
+                            <Form.Item name="startDate" label="Başlangıç Tarihi" rules={[{ required: true }]}>
+                                <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
                             </Form.Item>
                         </Col>
-                        <Col span={14}>
-                            <Form.Item name="amount" label="Tutar" rules={[{ required: true, type: 'number', min: 0.01 }]} style={{ marginBottom: 16 }}>
-                                <InputNumber style={{ width: '100%' }} precision={2} placeholder="0.00" />
+                        <Col span={12}>
+                            <Form.Item name="endDate" label="Bitiş Tarihi">
+                                <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
                             </Form.Item>
                         </Col>
                     </Row>
-
-                    <Form.Item label="Günlük Kur (TCMB)" style={{ marginBottom: 16 }}>
-                        <Row gutter={8}>
-                            <Col span={18}>
-                                <Form.Item name="tcmbExchangeRate" noStyle rules={[{ required: true }]}>
-                                    <InputNumber
-                                        style={{ width: '100%' }}
-                                        precision={4}
-                                        disabled={currencyCode === 'TRY'}
-                                    />
-                                </Form.Item>
-                            </Col>
-                            <Col span={6}>
-                                <Button
-                                    block
-                                    disabled={currencyCode === 'TRY' || !rates || ratesError}
-                                    onClick={() => {
-                                        if (rates && currencyCode && rates[currencyCode]) {
-                                            form.setFieldsValue({ tcmbExchangeRate: rates[currencyCode] });
-                                        }
-                                    }}
-                                >
-                                    TCMB
-                                </Button>
-                            </Col>
-                        </Row>
+                    <Form.Item name="status" label="Durum" rules={[{ required: true }]}>
+                        <Select size="large">
+                            <Select.Option value="OPEN">
+                                <span style={{ color: '#60a5fa', fontWeight: 600 }}>● AÇIK</span>
+                            </Select.Option>
+                            <Select.Option value="CLOSED">
+                                <span style={{ color: '#94a3b8', fontWeight: 600 }}>● KAPALI</span>
+                            </Select.Option>
+                        </Select>
                     </Form.Item>
-
-                    <Form.Item name="description" label="Açıklama (isteğe bağlı)" style={{ marginBottom: 16 }}>
-                        <Input.TextArea rows={2} placeholder="Kısa bir açıklama..." />
-                    </Form.Item>
-
-                    <div style={{
-                        marginTop: 12,
-                        padding: '12px 16px',
-                        borderRadius: 10,
-                        background: 'rgba(37, 99, 235, 0.08)',
-                        border: '1px solid rgba(37, 99, 235, 0.15)',
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center'
-                    }}>
-                        <Text style={{ color: 'var(--accent-blue)', fontSize: 13, margin: 0 }}>Hesaplanan Net TRY</Text>
-                        <Title level={4} style={{ color: 'var(--text-primary)', margin: 0, fontWeight: 700 }}>
-                            {formatCurrency(amountTRY, 'TRY')}
-                        </Title>
-                    </div>
-
+                </Form>
+                <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 20, display: 'flex', gap: 12 }}>
+                    <Button onClick={closeSeferDrawer} style={{ flex: 1, height: 50, borderRadius: 12 }}>Vazgeç</Button>
                     <Button
                         type="primary"
-                        block
-                        onClick={() => form.submit()}
-                        loading={isSaving || createMutation.isPending || updateMutation.isPending}
-                        style={{
-                            marginTop: 20,
-                            height: 44,
-                            borderRadius: 10,
-                            background: 'var(--accent-gradient)',
-                            border: 'none',
-                            fontWeight: 700,
-                            fontSize: 15,
-                        }}
+                        onClick={() => seferForm.submit()}
+                        loading={createSeferMutation.isPending || updateSeferMutation.isPending}
+                        style={{ flex: 2, height: 50, borderRadius: 12, background: 'var(--accent-gradient)', border: 'none' }}
                     >
-                        Kaydet
+                        {editingSefer ? 'Güncelle' : 'Sefer Oluştur'}
                     </Button>
-                </Form>
+                </div>
             </Drawer>
         </div>
     );

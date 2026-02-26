@@ -28,9 +28,25 @@ export const getTransactions = async (
         constraints.push(where('date', '<=', filters.dateRange[1]));
     }
 
-    // Frontend pagination uses AntD Table pagination which is page-based.
-    // Converting cursor-based pagination to page-based is tricky with Firestore.
-    // But here we'll use the cursor-based helper and let the UI handle it.
+    return queryWithPagination<Transaction>(COLLECTIONS.TRANSACTIONS, constraints, pagination, 'date', 'desc');
+};
+
+/** Fetch transactions belonging to a specific sefer (paginated) */
+export const getSeferTransactions = async (
+    seferId: string,
+    pagination: PaginationParams,
+    filters: TransactionFilters = {}
+) => {
+    const constraints: QueryConstraint[] = [where('seferId', '==', seferId)];
+
+    if (filters.type && filters.type !== 'ALL') {
+        constraints.push(where('type', '==', filters.type));
+    }
+
+    if (filters.status && filters.status !== 'ALL') {
+        constraints.push(where('status', '==', filters.status));
+    }
+
     return queryWithPagination<Transaction>(COLLECTIONS.TRANSACTIONS, constraints, pagination, 'date', 'desc');
 };
 
@@ -100,13 +116,36 @@ export const getVehicleSummary = async (vehicleId: string) => {
     };
 };
 
+/** Compute income/expense/net for a single sefer via Firestore aggregation */
+export const getSeferSummary = async (seferId: string) => {
+    const incomeConstraints = [
+        where('seferId', '==', seferId),
+        where('type', '==', 'INCOME'),
+    ];
+    const expenseConstraints = [
+        where('seferId', '==', seferId),
+        where('type', '==', 'EXPENSE'),
+    ];
+
+    const [incomeResult, expenseResult] = await Promise.all([
+        aggregateCollection<Transaction>(COLLECTIONS.TRANSACTIONS, incomeConstraints, { sum: 'amountTRY' }),
+        aggregateCollection<Transaction>(COLLECTIONS.TRANSACTIONS, expenseConstraints, { sum: 'amountTRY' }),
+    ]);
+
+    const totalIncomeTRY = incomeResult.sum || 0;
+    const totalExpenseTRY = expenseResult.sum || 0;
+
+    return {
+        totalIncomeTRY,
+        totalExpenseTRY,
+        netTRY: totalIncomeTRY - totalExpenseTRY,
+    };
+};
+
 export const getYearlyTransactions = async (year: number) => {
     const startOfYear = Timestamp.fromDate(new Date(year, 0, 1));
     const endOfYear = Timestamp.fromDate(new Date(year, 11, 31, 23, 59, 59, 999));
 
-    // IMPORTANT: Firestore requires orderBy on the same field used for range filters.
-    // Without orderBy('date'), Firestore will silently return 0 results or throw
-    // a FAILED_PRECONDITION index error.
     const q = query(
         collection(db, COLLECTIONS.TRANSACTIONS),
         where('date', '>=', startOfYear),

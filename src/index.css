@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Urbanist:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700;800&display=swap');
 
 :root {
   --bg-dark: #0f172a;
@@ -6,6 +6,7 @@
   --bg-card-solid: #1e293b;
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
   --accent-blue: #2563eb;
   --accent-purple: #7c3aed;
   --accent-gradient: linear-gradient(135deg, #2563eb, #7c3aed);
@@ -27,11 +28,12 @@ body {
   padding: 0;
   width: 100%;
   overflow-x: hidden;
-  font-family: 'Urbanist', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Jost', -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: var(--bg-dark);
   color: var(--text-primary);
   -webkit-font-smoothing: antialiased;
 }
+
 
 /* Ant Design Overrides */
 .ant-layout {
@@ -602,4 +604,10 @@ body {
     transform: scale(2.5);
     opacity: 0;
   }
+}
+
+/* Sefer Card */
+.sefer-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.4), 0 0 16px rgba(37, 99, 235, 0.1) !important;
 }

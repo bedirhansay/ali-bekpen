@@ -30,6 +30,7 @@ export const COLLECTIONS = {
     VEHICLES: 'vehicles',
     TRANSACTIONS: 'transactions',
     EXCHANGE_RATES: 'exchangeRates',
+    SEFERS: 'sefers',
 } as const;
 
 /* ----------------------------- BASE TYPES ----------------------------- */
@@ -57,14 +58,23 @@ export const getTypedCollection = <T extends BaseDoc>(name: string) =>
 export const getTypedDoc = <T extends BaseDoc>(name: string, id: string) =>
     doc(db, name, id).withConverter(createConverter<T>());
 
+/* ----------------------------- SANITIZE ----------------------------- */
+/** Remove undefined values from an object so Firestore doesn't reject them */
+const stripUndefined = <T extends Record<string, any>>(obj: T): T => {
+    return Object.fromEntries(
+        Object.entries(obj).filter(([, v]) => v !== undefined)
+    ) as T;
+};
+
 /* ----------------------------- CRUD OPERATIONS ----------------------------- */
+
 export const createDocument = async <T extends BaseDoc>(
     collectionName: string,
     data: Omit<T, 'id' | 'createdAt' | 'updatedAt'>
 ): Promise<string> => {
     try {
         const docRef = await addDoc(getTypedCollection<T>(collectionName), {
-            ...data,
+            ...stripUndefined(data as any),
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
         } as any);
@@ -92,7 +102,7 @@ export const updateDocument = async <T extends BaseDoc>(
 ): Promise<void> => {
     try {
         await updateDoc(getTypedDoc<T>(collectionName, docId), {
-            ...data,
+            ...stripUndefined(data as any),
             updatedAt: serverTimestamp(),
         });
     } catch (err) {
