@@ -7,7 +7,7 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    // Exchange Rates: Read only for users (Writes by Admin/Functions only)
+    // Exchange Rates: Read only for users (Writes by /Functions only)
     match /exchangeRates/{id} {
       allow read: if isAuthenticated();
       allow write: if false;

@@ -2,7 +2,7 @@
 
 Modern accounting dashboard built with React, TypeScript, and Firebase. Features real-time data synchronization and comprehensive accounting management.
 
-![alt text](public/images/shadcn-admin.png)
+![alt text](public/images/shadcn-.png)
 
 A complete accounting solution with customer management, product catalog, purchase/sales tracking, payment processing, and ledger management. Built with modern web technologies and Firebase backend.
 

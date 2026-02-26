@@ -1,5 +1,5 @@
-import { initializeApp, cert } from 'firebase-admin/app';
-import { getFirestore, AggregateField } from 'firebase-admin/firestore';
+import { initializeApp, cert } from 'firebase-/app';
+import { getFirestore, AggregateField } from 'firebase-/firestore';
 import fs from 'fs';
 
 // Try to find a service account key or initialize with default if possible.

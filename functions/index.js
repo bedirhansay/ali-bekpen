@@ -1,10 +1,10 @@
 const functions = require('firebase-functions');
-const admin = require('firebase-admin');
+const  = require('firebase-');
 const axios = require('axios');
 const xml2js = require('xml2js');
 
-admin.initializeApp();
-const db = admin.firestore();
+.initializeApp();
+const db = .firestore();
 
 /**
  * getDailyRates — HTTPS Callable Firebase Cloud Function
@@ -82,7 +82,7 @@ exports.getDailyRates = functions.https.onCall(async (_data, _context) => {
         await cacheRef.set({
             USD: parsedRates.USD,
             EUR: parsedRates.EUR,
-            createdAt: admin.firestore.FieldValue.serverTimestamp(),
+            createdAt: .firestore.FieldValue.serverTimestamp(),
         });
     } catch (_saveError) {
         // Non-fatal: cache write failure should not block the response

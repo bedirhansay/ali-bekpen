@@ -169,7 +169,7 @@ const SignIn = () => {
 
                     <div style={{ textAlign: 'center', marginTop: 32 }}>
                         <Text style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
-                            © {new Date().getFullYear()} Bekpen Hesap. Tüm hakları saklıdır.
+                            © {new Date().getFullYear()} biHesap. Tüm hakları saklıdır.
                         </Text>
                     </div>
                 </div>

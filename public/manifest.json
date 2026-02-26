@@ -1,6 +1,6 @@
 {
-  "name": "Bekpen Hesap",
-  "short_name": "Bekpen",
+  "name": "biHesap",
+  "short_name": "biHesap",
   "description": "Araç gelir-gider takip uygulaması",
   "theme_color": "#0f0f17",
   "background_color": "#0f0f17",
@@ -8,7 +8,7 @@
   "scope": "/",
   "start_url": "/",
   "orientation": "any",
-  "id": "bekpen-hesap",
+  "id": "biHesap",
   "dir": "ltr",
   "lang": "tr",
   "icons": [

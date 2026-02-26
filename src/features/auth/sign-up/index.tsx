@@ -29,7 +29,7 @@ const SignUp = () => {
             <Content style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <Card style={{ width: 400, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
                     <div style={{ textAlign: 'center', marginBottom: 24 }}>
-                        <Title level={3} style={{ margin: 0 }}>Bekpen Hesap</Title>
+                        <Title level={3} style={{ margin: 0 }}>biHesap</Title>
                         <Text type="secondary">Yeni bir hesap oluşturun.</Text>
                     </div>
                     <Form layout="vertical" onFinish={onFinish}>

@@ -11,8 +11,8 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'Bekpen Hesap',
-        short_name: 'Bekpen',
+        name: 'biHesap',
+        short_name: 'biHesap',
         description: 'Modern araç gelir-gider takip sistemi',
         theme_color: '#0f0f17',
         background_color: '#0f0f17',

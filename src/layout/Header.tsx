@@ -64,7 +64,7 @@ export const Header: React.FC = () => {
                 label: (
                     <div style={{ padding: '4px 8px' }}>
                         <Text strong style={{ display: 'block' }}>{auth.currentUser?.email?.split('@')[0] || 'User'}</Text>
-                        <Text type="secondary" style={{ fontSize: '12px' }}>Admin</Text>
+                        <Text type="secondary" style={{ fontSize: '12px' }}></Text>
                     </div>
                 ),
             },
@@ -90,7 +90,7 @@ export const Header: React.FC = () => {
     return (
         <>
             <AntHeader className="app-header">
-                <div className="header-container" style={{ padding: isMobile ? '0 16px' : '0' }}>
+                <div className="header-container" style={{ padding: 0 }}>
                     {/* Left Section: Logo + Mobile Menu */}
                     <div className="header-left" style={{ gap: isMobile ? '12px' : '16px' }}>
                         {isMobile && (
@@ -102,9 +102,9 @@ export const Header: React.FC = () => {
                             />
                         )}
                         <div className="logo-section" onClick={() => navigate('/dashboard')} style={{ gap: isMobile ? '8px' : '12px' }}>
-                            <div className="logo-box">BH</div>
+                            <img src="/android-chrome-192x192.png" alt="Logo" style={{ width: 36, height: 36, borderRadius: '8px' }} />
                             <Title level={4} className="logo-text">
-                                Bekpen{(!isMobile || !screens.xs) && <span>Hesap</span>}
+                                bi<span>Hesap</span>
                             </Title>
                         </div>
                     </div>
@@ -147,7 +147,7 @@ export const Header: React.FC = () => {
                                             <Text className="user-name">
                                                 {auth.currentUser?.email?.split('@')[0] || 'User'}
                                             </Text>
-                                            <Text className="user-role">Admin</Text>
+                                            <Text className="user-role"></Text>
                                         </div>
                                     )}
                                     <Avatar
@@ -170,8 +170,8 @@ export const Header: React.FC = () => {
             <Drawer
                 title={
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                        <div className="logo-box" style={{ width: 32, height: 32, fontSize: 14 }}>BH</div>
-                        <Text strong style={{ color: 'var(--text-primary)', fontSize: 18 }}>Bekpen Hesap</Text>
+                        <img src="/android-chrome-192x192.png" alt="Logo" style={{ width: 32, height: 32, borderRadius: '8px' }} />
+                        <Text strong style={{ color: 'var(--text-primary)', fontSize: 18 }}>biHesap</Text>
                     </div>
                 }
                 placement="left"
