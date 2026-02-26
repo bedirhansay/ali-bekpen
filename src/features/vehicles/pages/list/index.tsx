@@ -1,10 +1,12 @@
 import { Plus, Car, MoreVertical, Edit2, Trash2, ArrowRight } from 'lucide-react';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Modal, Row, Col, Typography, Dropdown, MenuProps } from 'antd';
+import { Button, Form, Input, Modal, Row, Col, Typography, Dropdown, MenuProps, DatePicker } from 'antd';
 import { Link } from 'react-router-dom';
+import dayjs from 'dayjs';
 import { getVehicles, createVehicle, updateVehicle, deleteVehicle } from '../../api';
-import { CreateVehicleDTO, Vehicle } from '../../types';
+import { Vehicle } from '../../types';
+import { getExpiryStatus } from '../../utils/statusUtils';
 import { showSuccess, showError, showLoading } from '../../../../lib/toast';
 import { PageSkeleton } from '@/components/PageSkeleton';
 
@@ -37,7 +39,7 @@ const VehiclesPage = () => {
     });
 
     const updateMutation = useMutation({
-        mutationFn: ({ id, data }: { id: string; data: CreateVehicleDTO }) => updateVehicle(id, data),
+        mutationFn: ({ id, data }: { id: string; data: any }) => updateVehicle(id, data),
         onMutate: () => {
             return { toastId: showLoading("Kaydediliyor...") };
         },
@@ -69,7 +71,11 @@ const VehiclesPage = () => {
     const handleOpen = (vehicle?: Vehicle) => {
         if (vehicle) {
             setEditingVehicle(vehicle);
-            form.setFieldsValue(vehicle);
+            form.setFieldsValue({
+                ...vehicle,
+                insuranceExpiryDate: vehicle.insuranceExpiryDate ? dayjs(vehicle.insuranceExpiryDate.toDate()) : null,
+                inspectionExpiryDate: vehicle.inspectionExpiryDate ? dayjs(vehicle.inspectionExpiryDate.toDate()) : null,
+            });
         } else {
             setEditingVehicle(null);
             form.resetFields();
@@ -83,11 +89,17 @@ const VehiclesPage = () => {
         form.resetFields();
     };
 
-    const onFinish = (values: CreateVehicleDTO) => {
+    const onFinish = (values: any) => {
+        const payload = {
+            ...values,
+            insuranceExpiryDate: values.insuranceExpiryDate ? values.insuranceExpiryDate.toDate() : null,
+            inspectionExpiryDate: values.inspectionExpiryDate ? values.inspectionExpiryDate.toDate() : null,
+        };
+
         if (editingVehicle) {
-            updateMutation.mutate({ id: editingVehicle.id, data: values });
+            updateMutation.mutate({ id: editingVehicle.id, data: payload });
         } else {
-            createMutation.mutate(values);
+            createMutation.mutate(payload as any);
         }
     };
 
@@ -135,79 +147,140 @@ const VehiclesPage = () => {
             </div>
 
             <Row gutter={[24, 24]}>
-                {data?.items.map((vehicle, index) => (
-                    <Col xs={24} sm={12} lg={8} key={vehicle.id}>
-                        <div className={`glass-card animated-list-item stagger-${(index % 4) + 1}`} style={{ position: 'relative', overflow: 'hidden', padding: 0 }}>
-                            <div style={{ height: 4, width: '100%', background: 'var(--accent-gradient)', position: 'absolute', top: 0, left: 0 }} />
+                {data?.items.map((vehicle, index) => {
+                    const insurance = getExpiryStatus(vehicle.insuranceExpiryDate);
+                    const inspection = getExpiryStatus(vehicle.inspectionExpiryDate);
+                    const isCritical = insurance.status === 'danger' || inspection.status === 'danger' || insurance.status === 'expired' || inspection.status === 'expired';
 
-                            <div style={{ padding: 24 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-                                        <div style={{
-                                            width: 48,
-                                            height: 48,
-                                            borderRadius: 12,
-                                            background: 'rgba(255,255,255,0.05)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            border: '1px solid rgba(255,255,255,0.1)'
-                                        }}>
-                                            <Car size={24} color="var(--accent-blue)" />
-                                        </div>
-                                        <div>
-                                            <Title level={4} style={{ margin: 0, color: 'var(--text-primary)' }}>{vehicle.name}</Title>
-                                            <span style={{
-                                                background: 'rgba(255,255,255,0.1)',
-                                                padding: '2px 8px',
-                                                borderRadius: 6,
-                                                fontSize: 12,
-                                                fontWeight: 600,
-                                                color: 'var(--text-secondary)',
-                                                display: 'inline-block',
-                                                marginTop: 4
+                    return (
+                        <Col xs={24} sm={12} lg={8} key={vehicle.id}>
+                            <div className={`glass-card animated-list-item stagger-${(index % 4) + 1}`}
+                                style={{
+                                    position: 'relative',
+                                    overflow: 'hidden',
+                                    padding: 0,
+                                    border: isCritical ? `1px solid ${insurance.status === 'expired' || inspection.status === 'expired' ? '#991b1b' : 'rgba(239, 68, 68, 0.3)'}` : undefined,
+                                    boxShadow: isCritical ? `0 0 20px -5px ${insurance.status === 'expired' || inspection.status === 'expired' ? 'rgba(153, 27, 27, 0.4)' : 'rgba(239, 68, 68, 0.4)'}` : undefined
+                                }}
+                            >
+                                <div style={{
+                                    height: 4,
+                                    width: '100%',
+                                    background: isCritical ? '#ef4444' : 'var(--accent-gradient)',
+                                    position: 'absolute', top: 0, left: 0
+                                }} />
+
+                                <div style={{ padding: 24 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+                                            <div style={{
+                                                width: 48,
+                                                height: 48,
+                                                borderRadius: 12,
+                                                background: 'rgba(255,255,255,0.05)',
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                border: '1px solid rgba(255,255,255,0.1)'
                                             }}>
-                                                {vehicle.plate}
+                                                <Car size={24} color="var(--accent-blue)" />
+                                            </div>
+                                            <div>
+                                                <Title level={4} style={{ margin: 0, color: 'var(--text-primary)' }}>{vehicle.name}</Title>
+                                                <span style={{
+                                                    background: 'rgba(255,255,255,0.1)',
+                                                    padding: '2px 8px',
+                                                    borderRadius: 6,
+                                                    fontSize: 12,
+                                                    fontWeight: 600,
+                                                    color: 'var(--text-secondary)',
+                                                    display: 'inline-block',
+                                                    marginTop: 4
+                                                }}>
+                                                    {vehicle.plate}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <Dropdown menu={getMenuProps(vehicle)} trigger={['click']} placement="bottomRight">
+                                            <Button type="text" icon={<MoreVertical color="var(--text-secondary)" />} style={{ width: 32, height: 32, padding: 0 }} />
+                                        </Dropdown>
+                                    </div>
+
+                                    <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
+                                        <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
+                                            <Text style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Gelir Özeti</Text>
+                                            <div style={{ color: 'var(--income)', fontWeight: 600 }}>Tıklayıp Gör</div>
+                                        </div>
+                                        <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
+                                            <Text style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Gider Özeti</Text>
+                                            <div style={{ color: 'var(--expense)', fontWeight: 600 }}>Tıklayıp Gör</div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div style={{ padding: '0 24px 24px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                    {/* Expiry Indicators */}
+                                    <div style={{ display: 'flex', gap: 12 }}>
+                                        <div style={{
+                                            flex: 1,
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: 4,
+                                            padding: '8px 12px',
+                                            borderRadius: 10,
+                                            background: 'rgba(255,255,255,0.03)',
+                                            border: insurance.status === 'expired' ? '1px solid rgba(153, 27, 27, 0.3)' : '1px solid rgba(255,255,255,0.05)'
+                                        }}>
+                                            <span style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                📅 Sigorta
+                                            </span>
+                                            <span style={{ fontWeight: 600, fontSize: 13, color: insurance.color, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                {(insurance.status === 'danger' || insurance.status === 'expired') && <div className="pulse-dot-red" />}
+                                                {insurance.label}
+                                            </span>
+                                        </div>
+                                        <div style={{
+                                            flex: 1,
+                                            display: 'flex',
+                                            flexDirection: 'column',
+                                            gap: 4,
+                                            padding: '8px 12px',
+                                            borderRadius: 10,
+                                            background: 'rgba(255,255,255,0.03)',
+                                            border: inspection.status === 'expired' ? '1px solid rgba(153, 27, 27, 0.3)' : '1px solid rgba(255,255,255,0.05)'
+                                        }}>
+                                            <span style={{ fontSize: 10, color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                                                🔧 Muayene
+                                            </span>
+                                            <span style={{ fontWeight: 600, fontSize: 13, color: inspection.color, display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                {(inspection.status === 'danger' || inspection.status === 'expired') && <div className="pulse-dot-red" />}
+                                                {inspection.label}
                                             </span>
                                         </div>
                                     </div>
-                                    <Dropdown menu={getMenuProps(vehicle)} trigger={['click']} placement="bottomRight">
-                                        <Button type="text" icon={<MoreVertical color="var(--text-secondary)" />} style={{ width: 32, height: 32, padding: 0 }} />
-                                    </Dropdown>
-                                </div>
 
-                                <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-                                    <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
-                                        <Text style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Gelir Özeti</Text>
-                                        <div style={{ color: 'var(--income)', fontWeight: 600 }}>Tıklayıp Gör</div>
-                                    </div>
-                                    <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
-                                        <Text style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Gider Özeti</Text>
-                                        <div style={{ color: 'var(--expense)', fontWeight: 600 }}>Tıklayıp Gör</div>
-                                    </div>
+                                    <Link to={`/vehicles/${vehicle.id}`} style={{ display: 'block', textDecoration: 'none' }}>
+                                        <div style={{
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            alignItems: 'center',
+                                            padding: '12px 16px',
+                                            background: 'rgba(255,255,255,0.03)',
+                                            borderRadius: 8,
+                                            transition: 'var(--transition)',
+                                            color: 'var(--text-primary)'
+                                        }}
+                                            className="hover:bg-white/10 hover:text-white"
+                                        >
+                                            <span style={{ fontSize: 14, fontWeight: 500 }}>Detaylara Git</span>
+                                            <ArrowRight size={16} />
+                                        </div>
+                                    </Link>
                                 </div>
-
-                                <Link to={`/vehicles/${vehicle.id}`} style={{ display: 'block', textDecoration: 'none' }}>
-                                    <div style={{
-                                        display: 'flex',
-                                        justifyContent: 'space-between',
-                                        alignItems: 'center',
-                                        padding: '12px 16px',
-                                        background: 'rgba(255,255,255,0.03)',
-                                        borderRadius: 8,
-                                        transition: 'var(--transition)',
-                                        color: 'var(--text-primary)'
-                                    }}
-                                        className="hover:bg-white/10 hover:text-white"
-                                    >
-                                        <span style={{ fontSize: 14, fontWeight: 500 }}>Detaylara Git</span>
-                                        <ArrowRight size={16} />
-                                    </div>
-                                </Link>
                             </div>
-                        </div>
-                    </Col>
-                ))}
+                        </Col>
+                    );
+                })}
             </Row>
 
             {/* Floating FAB */}
@@ -262,6 +335,27 @@ const VehiclesPage = () => {
                         >
                             <Input placeholder="Örn: Renault Megane" size="large" />
                         </Form.Item>
+
+                        <Row gutter={16}>
+                            <Col span={12}>
+                                <Form.Item
+                                    name="insuranceExpiryDate"
+                                    label="Sigorta Bitiş Tarihi"
+                                    rules={[{ required: true, message: 'Sigorta tarihi zorunludur' }]}
+                                >
+                                    <DatePicker style={{ width: '100%' }} size="large" format="DD.MM.YYYY" />
+                                </Form.Item>
+                            </Col>
+                            <Col span={12}>
+                                <Form.Item
+                                    name="inspectionExpiryDate"
+                                    label="Muayene Bitiş Tarihi"
+                                    rules={[{ required: true, message: 'Muayene tarihi zorunludur' }]}
+                                >
+                                    <DatePicker style={{ width: '100%' }} size="large" format="DD.MM.YYYY" />
+                                </Form.Item>
+                            </Col>
+                        </Row>
                     </Form>
                 </div>
             </Modal>

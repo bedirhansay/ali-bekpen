@@ -1,11 +1,14 @@
 import { Outlet } from 'react-router-dom';
-import { Layout as AntLayout } from 'antd';
+import { Layout as AntLayout, Grid } from 'antd';
 import { AuthGuard } from './auth-guard';
 import { Header } from '@/layout/Header';
 
 const { Content } = AntLayout;
 
 export const Layout = () => {
+    const screens = Grid.useBreakpoint();
+    const isMobile = !screens.md;
+
     return (
         <AuthGuard>
             <AntLayout style={{ minHeight: '100vh', background: 'var(--bg-dark)' }}>
@@ -13,7 +16,7 @@ export const Layout = () => {
 
                 <Content style={{
                     margin: 0,
-                    padding: 32,
+                    padding: isMobile ? '88px 16px 32px' : '104px 32px 32px',
                     minHeight: 280,
                     position: 'relative',
                     zIndex: 1

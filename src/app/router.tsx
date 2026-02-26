@@ -6,6 +6,7 @@ import { PageSkeleton } from '@/components/PageSkeleton';
 const DashboardPage = lazy(() => import('@/features/dashboard/pages/DashboardPage'));
 const VehiclesPage = lazy(() => import('@/features/vehicles/pages/list'));
 const VehicleDetailPage = lazy(() => import('@/features/vehicles/pages/detail'));
+const CategoryManagementPage = lazy(() => import('@/features/categories/pages/CategoryManagementPage'));
 const SignInPage = lazy(() => import('@/features/auth/sign-in/index'));
 
 export const Router = () => {
@@ -21,6 +22,7 @@ export const Router = () => {
                     <Route path="dashboard" element={<DashboardPage />} />
                     <Route path="vehicles" element={<VehiclesPage />} />
                     <Route path="vehicles/:vehicleId" element={<VehicleDetailPage />} />
+                    <Route path="categories" element={<CategoryManagementPage />} />
                 </Route>
 
                 {/* Fallback */}

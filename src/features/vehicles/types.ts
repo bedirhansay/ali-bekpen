@@ -4,6 +4,8 @@ export interface Vehicle {
   id: string;
   name: string;
   plate: string;
+  insuranceExpiryDate: Timestamp;
+  inspectionExpiryDate: Timestamp;
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }

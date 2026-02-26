@@ -14,6 +14,8 @@ const ForgotPassword = lazy(() => import('@/features/auth/forgot-password'));
 const DashboardPage = lazy(() => import('@/features/dashboard/pages/DashboardPage'));
 const VehiclesPage = lazy(() => import('@/features/vehicles/pages/list'));
 const VehicleDetailPage = lazy(() => import('@/features/vehicles/pages/detail'));
+const CategoryManagementPage = lazy(() => import('@/features/categories/pages/CategoryManagementPage'));
+const AnalyticsPage = lazy(() => import('@/pages/analytics/AnalyticsPage'));
 
 function App() {
     const { needRefresh, updateServiceWorker } = useUpdateSW();
@@ -30,8 +32,11 @@ function App() {
                 {/* Main App Routes */}
                 <Route path="/" element={<Layout />}>
                     <Route index element={<DashboardPage />} />
+                    <Route path="dashboard" element={<Navigate to="/" replace />} />
                     <Route path="vehicles" element={<VehiclesPage />} />
                     <Route path="vehicles/:vehicleId" element={<VehicleDetailPage />} />
+                    <Route path="categories" element={<CategoryManagementPage />} />
+                    <Route path="analytics" element={<AnalyticsPage />} />
                 </Route>
 
                 {/* Fallback */}

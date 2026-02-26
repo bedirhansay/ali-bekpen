@@ -1,8 +1,10 @@
 import { useYearlySummary } from '@/features/dashboard/useYearlySummary';
 import { useYearState } from '@/features/dashboard/yearState';
+import { useCategoryBreakdown } from '@/features/categories/useCategoryBreakdown';
 import { Alert, Button, Card, Col, Flex, Row, Select, Spin, Typography } from 'antd';
 import { RefreshCcw } from 'lucide-react';
 import { useState } from 'react';
+import { formatCurrency } from '@/shared/utils/formatters';
 
 const { Title, Text } = Typography;
 
@@ -11,14 +13,7 @@ const MONTH_NAMES_TR = [
     'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'
 ];
 
-const formatMoney = (val: number) => {
-    return new Intl.NumberFormat('tr-TR', {
-        style: 'currency',
-        currency: 'TRY',
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-    }).format(val);
-};
+const formatMoney = (val: number) => formatCurrency(val, 'TRY');
 
 const CardStyle = {
     borderRadius: '20px',
@@ -31,6 +26,7 @@ const CardStyle = {
 export default function DashboardPage() {
     const { year, setYear, currentYear } = useYearState();
     const { data, isLoading, isFetching, error, refetch } = useYearlySummary(year);
+    const { data: categoryData } = useCategoryBreakdown(year);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     const handleRefresh = async () => {
@@ -144,6 +140,58 @@ export default function DashboardPage() {
                         </Col>
                     </Row>
 
+                    {/* Category Breakdown */}
+                    {categoryData && (categoryData.expenseByCategory.length > 0 || categoryData.incomeByCategory.length > 0) && (
+                        <div className="mb-10">
+                            <Title level={4} className="!mb-4">Kategori Dağılımı</Title>
+                            <Row gutter={[24, 24]}>
+                                <Col xs={24} md={12}>
+                                    <Card style={CardStyle} className="glass-card" bordered={false} title={<span style={{ color: 'var(--expense)' }}>En Çok Gider (Top 3)</span>}>
+                                        <Flex vertical gap={12}>
+                                            {categoryData.expenseByCategory.slice(0, 3).map(cat => {
+                                                const max = categoryData.expenseByCategory[0]?.totalTRY || 1;
+                                                const percent = (cat.totalTRY / max) * 100;
+                                                return (
+                                                    <div key={cat.categoryId}>
+                                                        <Flex justify="space-between" align="center" className="mb-1">
+                                                            <Text style={{ color: 'var(--text-secondary)' }}>{cat.categoryName}</Text>
+                                                            <Text style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{formatMoney(cat.totalTRY)}</Text>
+                                                        </Flex>
+                                                        <div style={{ height: 6, width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden' }}>
+                                                            <div style={{ height: '100%', width: `${percent}%`, background: cat.color || 'var(--expense)' }} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            {categoryData.expenseByCategory.length === 0 && <Text style={{ color: 'var(--text-secondary)' }}>Veri yok</Text>}
+                                        </Flex>
+                                    </Card>
+                                </Col>
+                                <Col xs={24} md={12}>
+                                    <Card style={CardStyle} className="glass-card" bordered={false} title={<span style={{ color: 'var(--income)' }}>En Çok Gelir (Top 3)</span>}>
+                                        <Flex vertical gap={12}>
+                                            {categoryData.incomeByCategory.slice(0, 3).map(cat => {
+                                                const max = categoryData.incomeByCategory[0]?.totalTRY || 1;
+                                                const percent = (cat.totalTRY / max) * 100;
+                                                return (
+                                                    <div key={cat.categoryId}>
+                                                        <Flex justify="space-between" align="center" className="mb-1">
+                                                            <Text style={{ color: 'var(--text-secondary)' }}>{cat.categoryName}</Text>
+                                                            <Text style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{formatMoney(cat.totalTRY)}</Text>
+                                                        </Flex>
+                                                        <div style={{ height: 6, width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: 3, overflow: 'hidden' }}>
+                                                            <div style={{ height: '100%', width: `${percent}%`, background: cat.color || 'var(--income)' }} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                            {categoryData.incomeByCategory.length === 0 && <Text style={{ color: 'var(--text-secondary)' }}>Veri yok</Text>}
+                                        </Flex>
+                                    </Card>
+                                </Col>
+                            </Row>
+                        </div>
+                    )}
 
                     <Title level={2} className="!m-0">Aylık Özet</Title>
                     {/* Monthly Cards Grid */}

@@ -15,6 +15,11 @@ export const getVehicles = async (pagination: PaginationParams) => {
     return queryWithPagination<Vehicle>(COLLECTIONS.VEHICLES, constraints, pagination);
 };
 
+export const getVehiclesList = async () => {
+    const constraints: QueryConstraint[] = [orderBy('plate', 'asc')];
+    return queryWithPagination<Vehicle>(COLLECTIONS.VEHICLES, constraints, { pageSize: 100 });
+};
+
 export const getVehicle = async (id: string) => {
     return getDocument<Vehicle>(COLLECTIONS.VEHICLES, id);
 };

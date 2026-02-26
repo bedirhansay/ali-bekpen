@@ -6,6 +6,7 @@ export type CurrencyCode = 'TRY' | 'USD' | 'EUR';
 export interface Transaction {
   id: string;
   vehicleId: string;
+  categoryId: string;
   type: TransactionType;
   date: Timestamp;
   description?: string | null;

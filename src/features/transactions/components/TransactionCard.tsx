@@ -1,8 +1,10 @@
 import React from 'react';
 import { Popconfirm } from 'antd';
-import { ArrowUpRight, ArrowDownLeft, Calendar, Trash2 } from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, Calendar, Trash2, Tag } from 'lucide-react';
 import dayjs from 'dayjs';
 import { Transaction } from '../types';
+import { useCategories } from '@/features/categories/hooks';
+import { formatCurrency } from '@/shared/utils/formatters';
 
 interface TransactionCardProps {
     transaction: Transaction;
@@ -13,7 +15,10 @@ interface TransactionCardProps {
 
 export const TransactionCard: React.FC<TransactionCardProps> = ({ transaction: tx, onEdit, onDelete, index }) => {
     const isIncome = tx.type === 'INCOME';
-    const date = dayjs((tx.date as any).toDate ? (tx.date as any).toDate() : tx.date).format('DD.MM.YYYY');
+    const date = dayjs((tx.date as any).toDate ? (tx.date as any).toDate() : tx.date).format('DD.MM.YYYY HH:mm');
+
+    const { data: categories } = useCategories();
+    const categoryName = categories?.find(c => c.id === tx.categoryId)?.name || 'Kategori Yok';
 
     return (
         <div
@@ -76,7 +81,7 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ transaction: t
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                 }}>
-                    {tx.description}
+                    {tx.description || categoryName}
                 </div>
                 <div style={{
                     display: 'flex',
@@ -86,7 +91,11 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ transaction: t
                     color: 'var(--text-secondary)',
                     fontSize: 11,
                 }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 13, fontWeight: 500 }}>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 500 }}>
+                        <Tag size={12} />
+                        {categoryName}
+                    </span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 12, fontWeight: 500 }}>
                         <Calendar size={12} />
                         {date}
                     </span>
@@ -105,11 +114,11 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ transaction: t
                     lineHeight: 1.3,
                     whiteSpace: 'nowrap',
                 }}>
-                    {isIncome ? '+' : '-'}{tx.amount.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} {tx.currencyCode}
+                    {isIncome ? '+' : '-'}{formatCurrency(tx.amount, tx.currencyCode)}
                 </div>
                 {tx.currencyCode !== 'TRY' && (
                     <div style={{ color: 'var(--text-secondary)', fontSize: 11, marginTop: 2, whiteSpace: 'nowrap' }}>
-                        {tx.amountTRY.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} TRY
+                        {formatCurrency(tx.amountTRY, 'TRY')}
                     </div>
                 )}
             </div>

@@ -2,11 +2,11 @@ import { Plus, Edit, Trash2, ChevronLeft } from 'lucide-react';
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, InputNumber, Row, Col, Typography, message, Popconfirm, Drawer, Select, DatePicker, Segmented, Skeleton, Spin, Alert } from 'antd';
+import { Button, Form, Input, InputNumber, Row, Col, Typography, Popconfirm, Drawer, Select, DatePicker, Segmented, Skeleton, Spin, Alert } from 'antd';
 import dayjs from 'dayjs';
 import { showSuccess, showError } from '@/lib/toast';
 
-import { getVehicle, deleteVehicle } from '../../api';
+import { getVehicle, deleteVehicle, updateVehicle } from '../../api';
 import {
     getTransactions,
     createTransaction,
@@ -20,6 +20,8 @@ import { Transaction, CreateTransactionDTO, TransactionFilters, CurrencyCode } f
 import { EmptyState } from '@/features/transactions/components/EmptyState';
 import { TransactionCard } from '@/features/transactions/components/TransactionCard';
 import { DateFilter } from '@/features/transactions/components/DateFilter';
+import { useCategories } from '@/features/categories/hooks';
+import { formatCurrency } from '@/shared/utils/formatters';
 
 const { Title, Text } = Typography;
 
@@ -27,6 +29,8 @@ const VehicleDetailPage = () => {
     const { vehicleId } = useParams<{ vehicleId: string }>();
     const navigate = useNavigate();
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [isVehicleEditOpen, setIsVehicleEditOpen] = useState(false);
+    const [vehicleForm] = Form.useForm();
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
     const [filters, setFilters] = useState<TransactionFilters>({ type: 'ALL', dateRange: null });
     const [isSaving, setIsSaving] = useState(false);
@@ -59,6 +63,30 @@ const VehicleDetailPage = () => {
         enabled: !!vehicleId,
     });
 
+    const txType = Form.useWatch('type', form);
+    const { data: categories, isLoading: isLoadingCategories } = useCategories();
+
+    const filteredCategories = useMemo(() => {
+        const currentType = txType || form.getFieldValue('type') || 'INCOME';
+        return categories?.filter(c => c.type === currentType) || [];
+    }, [categories, txType, form]);
+
+    const topExpenseCategory = useMemo(() => {
+        if (!transactionsData?.items || !categories) return null;
+        const expenses = transactionsData.items.filter(t => t.type === 'EXPENSE');
+        const map: Record<string, number> = {};
+        expenses.forEach(t => {
+            if (t.categoryId) map[t.categoryId] = (map[t.categoryId] || 0) + (t.amountTRY || 0);
+        });
+        const arr = Object.entries(map).sort((a, b) => b[1] - a[1]);
+        if (arr.length === 0) return null;
+        const bestCatId = arr[0][0];
+        const bestAmount = arr[0][1];
+        const cat = categories.find(c => c.id === bestCatId);
+        if (!cat) return null;
+        return { name: cat.name, amount: bestAmount, color: cat.color };
+    }, [transactionsData?.items, categories]);
+
     // Auto-fill exchange rate when currency changes
     useEffect(() => {
         if (!currencyCode) return;
@@ -68,6 +96,26 @@ const VehicleDetailPage = () => {
             form.setFieldsValue({ tcmbExchangeRate: rates[currencyCode] });
         }
     }, [currencyCode, rates, form]);
+    // Task 1: Default Category Logic (Create Mode Only)
+    useEffect(() => {
+        const isEditMode = !!editingTransaction;
+        if (isEditMode) return;
+        if (!categories?.length || !txType) return;
+
+        if (txType === 'INCOME') {
+            const navlun = categories.find(c => c.name === 'Navlun' && c.type === 'INCOME');
+            form.setFieldsValue({
+                categoryId: navlun?.id ?? categories.find(c => c.type === 'INCOME')?.id ?? ''
+            });
+        }
+
+        if (txType === 'EXPENSE') {
+            const harcirah = categories.find(c => c.name === 'Harçrah' && c.type === 'EXPENSE');
+            form.setFieldsValue({
+                categoryId: harcirah?.id ?? categories.find(c => c.type === 'EXPENSE')?.id ?? ''
+            });
+        }
+    }, [txType, categories, editingTransaction, form]);
 
     const amountTRY = useMemo(() => {
         if (amount && selectedRate) return amount * selectedRate;
@@ -119,6 +167,25 @@ const VehicleDetailPage = () => {
         },
         onError: (err) => {
             showError(err);
+        }
+    });
+
+    const updateVehicleMutation = useMutation({
+        mutationFn: (values: any) => {
+            const payload = {
+                ...values,
+                insuranceExpiryDate: values.insuranceExpiryDate ? values.insuranceExpiryDate.toDate() : null,
+                inspectionExpiryDate: values.inspectionExpiryDate ? values.inspectionExpiryDate.toDate() : null,
+            };
+            return updateVehicle(vehicleId!, payload);
+        },
+        onSuccess: () => {
+            showSuccess('Araç başarıyla güncellendi');
+            queryClient.invalidateQueries({ queryKey: ['vehicle', vehicleId] });
+            setIsVehicleEditOpen(false);
+        },
+        onError: (err) => {
+            showError(err || 'Araç güncellenirken hata oluştu');
         }
     });
 
@@ -186,10 +253,19 @@ const VehicleDetailPage = () => {
             }
         }
 
+        // Use the selected date but append current time to ensure proper ordering for same-day transactions
+        const now = dayjs();
+        const dateWithTime = values.date
+            .hour(now.hour())
+            .minute(now.minute())
+            .second(now.second())
+            .toDate();
+
         const payload: CreateTransactionDTO = {
             vehicleId: vehicleId!,
+            categoryId: values.categoryId,
             type: values.type,
-            date: values.date.toDate(),
+            date: dateWithTime,
             description: values.description ?? null,
             amount: values.amount,
             currencyCode: currency,
@@ -249,7 +325,15 @@ const VehicleDetailPage = () => {
                     <Button
                         type="text"
                         icon={<Edit size={16} />}
-                        onClick={() => message.info('Düzenleme yakında eklenecek.')}
+                        onClick={() => {
+                            vehicleForm.setFieldsValue({
+                                name: vehicle.name,
+                                plate: vehicle.plate,
+                                insuranceExpiryDate: vehicle.insuranceExpiryDate ? dayjs(vehicle.insuranceExpiryDate.toDate()) : null,
+                                inspectionExpiryDate: vehicle.inspectionExpiryDate ? dayjs(vehicle.inspectionExpiryDate.toDate()) : null,
+                            });
+                            setIsVehicleEditOpen(true);
+                        }}
                         style={{
                             color: 'rgba(255,255,255,0.6)',
                             background: 'rgba(255,255,255,0.05)',
@@ -291,7 +375,7 @@ const VehicleDetailPage = () => {
                             fontSize: 12,
                             border: `1px solid ${isPositive ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
                         }}>
-                            NET: {isPositive ? '+' : '-'}{Math.abs(netValue).toLocaleString('tr-TR')} TRY
+                            NET: {isPositive ? '+' : '-'}{formatCurrency(Math.abs(netValue), 'TRY')}
                         </div>
                     </div>
                     <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>{vehicle.name}</Text>
@@ -305,7 +389,7 @@ const VehicleDetailPage = () => {
                             flex: '1 1 140px'
                         }}>
                             <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>Gelir</Text>
-                            <Text style={{ color: 'var(--income)', fontSize: 18, fontWeight: 700 }}>+{summary?.totalIncomeTRY?.toLocaleString('tr-TR')} ₺</Text>
+                            <Title level={5} style={{ color: 'var(--income)', margin: 0, fontWeight: 700 }}>+{formatCurrency(summary?.totalIncomeTRY || 0, 'TRY')}</Title>
                         </div>
                         <div style={{
                             background: 'rgba(255,255,255,0.03)',
@@ -315,8 +399,28 @@ const VehicleDetailPage = () => {
                             flex: '1 1 140px'
                         }}>
                             <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>Gider</Text>
-                            <Text style={{ color: 'var(--expense)', fontSize: 18, fontWeight: 700 }}>-{summary?.totalExpenseTRY?.toLocaleString('tr-TR')} ₺</Text>
+                            <Title level={5} style={{ color: 'var(--expense)', margin: 0, fontWeight: 700 }}>-{formatCurrency(summary?.totalExpenseTRY || 0, 'TRY')}</Title>
                         </div>
+                        {topExpenseCategory && (
+                            <div style={{
+                                background: 'rgba(255,255,255,0.03)',
+                                border: '1px solid rgba(255,255,255,0.05)',
+                                padding: '10px 16px',
+                                borderRadius: 12,
+                                display: 'flex',
+                                flexDirection: 'column',
+                                flex: '1 1 140px'
+                            }}>
+                                <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>En Çok Gider</Text>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 4 }}>
+                                    <div style={{ width: 8, height: 8, borderRadius: '50%', background: topExpenseCategory.color }} />
+                                    <Text style={{ color: '#fff', fontSize: 14, fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{topExpenseCategory.name}</Text>
+                                </div>
+                                <Text style={{ color: 'var(--expense)', fontSize: 15, fontWeight: 700, marginTop: 4 }}>
+                                    {formatCurrency(topExpenseCategory.amount, 'TRY')}
+                                </Text>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -449,6 +553,57 @@ const VehicleDetailPage = () => {
                 )}
             </div>
 
+            {/* Vehicle Edit Drawer */}
+            <Drawer
+                title="Araç Bilgilerini Düzenle"
+                placement="right"
+                onClose={() => setIsVehicleEditOpen(false)}
+                open={isVehicleEditOpen}
+                width={window.innerWidth > 500 ? 500 : '100%'}
+                maskStyle={{ backdropFilter: 'blur(8px)' }}
+            >
+                <div style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: 24 }}>
+                    <div style={{ flex: 1 }}>
+                        <Form
+                            form={vehicleForm}
+                            layout="vertical"
+                            onFinish={(values) => updateVehicleMutation.mutate(values)}
+                            size="large"
+                        >
+                            <Form.Item name="name" label="Araç Takma Adı" rules={[{ required: true, message: 'Araç adı zorunludur' }]}>
+                                <Input placeholder="Örn: 2024 Model Corolla" />
+                            </Form.Item>
+                            <Form.Item name="plate" label="Araç Plakası" rules={[{ required: true, message: 'Plaka zorunludur' }]}>
+                                <Input placeholder="Örn: 34 ABC 123" />
+                            </Form.Item>
+                            <Row gutter={16}>
+                                <Col span={12}>
+                                    <Form.Item name="insuranceExpiryDate" label="Sigorta Bitiş" rules={[{ required: true }]}>
+                                        <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
+                                    </Form.Item>
+                                </Col>
+                                <Col span={12}>
+                                    <Form.Item name="inspectionExpiryDate" label="Muayene Bitiş" rules={[{ required: true }]}>
+                                        <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
+                                    </Form.Item>
+                                </Col>
+                            </Row>
+                        </Form>
+                    </div>
+                    <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: 20, display: 'flex', gap: 12 }}>
+                        <Button onClick={() => setIsVehicleEditOpen(false)} style={{ flex: 1, height: 50, borderRadius: 12 }}>Vazgeç</Button>
+                        <Button
+                            type="primary"
+                            onClick={() => vehicleForm.submit()}
+                            loading={updateVehicleMutation.isPending}
+                            style={{ flex: 2, height: 50, borderRadius: 12, background: 'var(--accent-gradient)', border: 'none' }}
+                        >
+                            Güncelle
+                        </Button>
+                    </div>
+                </div>
+            </Drawer>
+
             {/* Transaction Drawer */}
             <Drawer
                 title={editingTransaction ? 'İşlem Detayı Düzenle' : 'Yeni İşlem Ekle'}
@@ -466,6 +621,23 @@ const VehicleDetailPage = () => {
                                 { label: 'Gider (-)', value: 'EXPENSE' },
                             ]}
                             style={{ padding: 4, background: 'rgba(255,255,255,0.05)' }}
+                        />
+                    </Form.Item>
+
+                    <Form.Item name="categoryId" label="Kategori" rules={[{ required: true, message: 'Category is required' }]}>
+                        <Select
+                            placeholder="Kategori Seçin"
+                            disabled={isLoadingCategories || !filteredCategories?.length}
+                            loading={isLoadingCategories}
+                            options={filteredCategories?.map(cat => ({
+                                label: (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                        <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: cat.color }} />
+                                        <span>{cat.name}</span>
+                                    </div>
+                                ),
+                                value: cat.id
+                            }))}
                         />
                     </Form.Item>
 
@@ -534,7 +706,7 @@ const VehicleDetailPage = () => {
                     }}>
                         <Text style={{ color: 'var(--accent-blue)', display: 'block', marginBottom: 4 }}>Hesaplanan TRY Karşılığı</Text>
                         <Title level={2} style={{ color: 'var(--text-primary)', margin: 0 }}>
-                            {amountTRY.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                            {formatCurrency(amountTRY, 'TRY')}
                         </Title>
                     </div>
 
