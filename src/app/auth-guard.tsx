@@ -1,27 +1,35 @@
-import { onAuthStateChanged } from 'firebase/auth';
+import { onAuthStateChanged, User } from 'firebase/auth';
 import { ReactNode, useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { auth } from '@/shared/utils/firebase-config';
 
-export const AuthGuard = ({ children }: { children: ReactNode }) => {
+export const AuthGuard = ({ children, requireAuth = true }: { children: ReactNode, requireAuth?: boolean }) => {
     const [loading, setLoading] = useState(true);
-    const navigate = useNavigate();
+    const [user, setUser] = useState<User | null>(null);
+    const location = useLocation();
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-            if (!user) {
-                // For simplicity, we'll skip redirect if user is at sign-in
-                if (window.location.pathname !== '/sign-in') {
-                    // navigate('/sign-in');
-                }
-            }
+        const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+            setUser(currentUser);
             setLoading(false);
         });
 
         return () => unsubscribe();
-    }, [navigate]);
+    }, []);
 
-    if (loading) return <div>Loading...</div>;
+    if (loading) return (
+        <div className="flex items-center justify-center min-h-screen">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+    );
+
+    if (requireAuth && !user) {
+        return <Navigate to="/sign-in" state={{ from: location }} replace />;
+    }
+
+    if (!requireAuth && user) {
+        return <Navigate to="/" replace />;
+    }
 
     return <>{children}</>;
 };

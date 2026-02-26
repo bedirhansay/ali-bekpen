@@ -212,6 +212,7 @@ const VehicleDetailPage = () => {
         queryClient.invalidateQueries({ queryKey: ['transactions', vehicleId] });
         queryClient.invalidateQueries({ queryKey: ['dashboardData'] });
         queryClient.invalidateQueries({ queryKey: ['dashboard'] }); // backward compatibility if any
+        queryClient.invalidateQueries({ queryKey: ['vehicles', 'analytics', 'last30days'] });
     };
 
     // ── Drawer open/close ─────────────────────────────────────────────────────

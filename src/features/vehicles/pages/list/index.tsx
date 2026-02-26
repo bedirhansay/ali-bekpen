@@ -1,7 +1,7 @@
-import { Plus, Car, MoreVertical, Edit2, Trash2, ArrowRight, Calendar } from 'lucide-react';
-import { useState, useMemo } from 'react';
+import { Plus, Car, MoreVertical, Edit2, Trash2, ArrowRight } from 'lucide-react';
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Modal, Row, Col, Typography, Dropdown, MenuProps, DatePicker, Select, Flex } from 'antd';
+import { Button, Form, Input, Modal, Row, Col, Typography, Dropdown, MenuProps, DatePicker, Flex, Skeleton } from 'antd';
 import { Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { getVehicles, createVehicle, updateVehicle, deleteVehicle } from '../../api';
@@ -9,7 +9,7 @@ import { Vehicle } from '../../types';
 import { getExpiryStatus } from '../../utils/statusUtils';
 import { showSuccess, showError, showLoading } from '../../../../lib/toast';
 import { PageSkeleton } from '@/components/PageSkeleton';
-import { useVehicleAnalytics } from '@/features/analytics/hooks/useVehicleAnalytics';
+import { useVehiclesLast30DaysAnalytics } from '../../api/useVehiclesLast30DaysAnalytics';
 import { formatCurrency } from '@/shared/utils/formatters';
 
 const { Title, Text } = Typography;
@@ -17,22 +17,15 @@ const { Title, Text } = Typography;
 const VehiclesPage = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
-    const currentYear = new Date().getFullYear();
-    const [selectedYear, setSelectedYear] = useState(currentYear);
     const [form] = Form.useForm();
     const queryClient = useQueryClient();
 
-    const { data, isLoading } = useQuery({
+    const { data: vehiclesData, isLoading: isVehiclesLoading } = useQuery({
         queryKey: ['vehicles'],
         queryFn: () => getVehicles({ pageSize: 100 }),
     });
 
-    const { data: analyticsData } = useVehicleAnalytics({
-        year: selectedYear,
-        type: 'ALL'
-    });
-
-    const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
+    const { data: analyticsData, isLoading: isAnalyticsLoading } = useVehiclesLast30DaysAnalytics();
 
     const createMutation = useMutation({
         mutationFn: createVehicle,
@@ -75,7 +68,7 @@ const VehiclesPage = () => {
         }
     });
 
-    if (isLoading) {
+    if (isVehiclesLoading) {
         return <PageSkeleton />;
     }
 
@@ -155,26 +148,19 @@ const VehiclesPage = () => {
                     <Title level={2} style={{ color: 'var(--text-primary)', margin: 0 }}>Araç Filosu</Title>
                     <Text style={{ color: 'var(--text-secondary)' }}>Tüm araçlarınızı ve finansal özetlerini görüntüleyin.</Text>
                 </div>
-                <Select
-                    value={selectedYear}
-                    onChange={setSelectedYear}
-                    style={{ width: 120 }}
-                    size="large"
-                    options={years.map(y => ({ label: `${y} Yılı`, value: y }))}
-                />
             </Flex>
 
             <Row gutter={[24, 24]}>
-                {data?.items.map((vehicle, index) => {
+                {vehiclesData?.items.map((vehicle, index) => {
                     const insurance = getExpiryStatus(vehicle.insuranceExpiryDate);
                     const inspection = getExpiryStatus(vehicle.inspectionExpiryDate);
                     const isCritical = insurance.status === 'danger' || inspection.status === 'danger' || insurance.status === 'expired' || inspection.status === 'expired';
 
-                    // Get totals from analytics
-                    const stats = analyticsData?.find(s => s.vehicleId === vehicle.id);
+                    const stats = analyticsData?.[vehicle.id];
+                    const hasTransactions = stats?.txCount && stats.txCount > 0;
 
                     return (
-                        <Col xs={24} sm={12} lg={8} key={vehicle.id}>
+                        <Col xs={24} sm={12} lg={8} xl={8} key={vehicle.id}>
                             <div className={`glass-card animated-list-item stagger-` + ((index % 4) + 1)}
                                 style={{
                                     position: 'relative',
@@ -227,18 +213,50 @@ const VehiclesPage = () => {
                                         </Dropdown>
                                     </div>
 
-                                    <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
-                                        <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
-                                            <Text style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Gelir Özeti</Text>
-                                            <div style={{ color: 'var(--income)', fontWeight: 700, fontSize: 15, marginTop: 2 }}>
-                                                {formatCurrency(stats?.totalIncome || 0, 'TRY')}
+                                    {/* 30 Days Analytics Section */}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: 12, marginBottom: 24 }}>
+                                        {isAnalyticsLoading ? (
+                                            <div style={{ display: 'flex', gap: 12 }}>
+                                                <Skeleton.Button active style={{ flex: 1, height: 60, borderRadius: 8 }} />
+                                                <Skeleton.Button active style={{ flex: 1, height: 60, borderRadius: 8 }} />
+                                                <Skeleton.Button active style={{ flex: 1, height: 60, borderRadius: 8 }} />
                                             </div>
-                                        </div>
-                                        <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
-                                            <Text style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Gider Özeti</Text>
-                                            <div style={{ color: 'var(--expense)', fontWeight: 700, fontSize: 15, marginTop: 2 }}>
-                                                {formatCurrency(stats?.totalExpense || 0, 'TRY')}
+                                        ) : !hasTransactions ? (
+                                            <div style={{
+                                                textAlign: 'center',
+                                                padding: '16px 0',
+                                                background: 'rgba(0,0,0,0.1)',
+                                                borderRadius: 8,
+                                                border: '1px dashed rgba(255,255,255,0.1)'
+                                            }}>
+                                                <Text style={{ fontStyle: 'italic', color: 'var(--text-secondary)', fontSize: 13 }}>
+                                                    Son 30 günde hareket yok
+                                                </Text>
                                             </div>
+                                        ) : (
+                                            <div style={{ display: 'flex', gap: 12 }}>
+                                                <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                    <Text style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Gelir</Text>
+                                                    <div style={{ color: 'var(--income)', fontWeight: 600, fontSize: 13 }}>
+                                                        {formatCurrency(stats.incomeTry, 'TRY')}
+                                                    </div>
+                                                </div>
+                                                <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                    <Text style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Gider</Text>
+                                                    <div style={{ color: 'var(--expense)', fontWeight: 600, fontSize: 13 }}>
+                                                        {formatCurrency(stats.expenseTry, 'TRY')}
+                                                    </div>
+                                                </div>
+                                                <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', padding: '10px 12px', borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                                                    <Text style={{ fontSize: 10, color: 'var(--text-secondary)', marginBottom: 2 }}>Net</Text>
+                                                    <div style={{ color: stats.netTry >= 0 ? 'var(--income)' : 'var(--expense)', fontWeight: 700, fontSize: 13 }}>
+                                                        {formatCurrency(stats.netTry, 'TRY')}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+                                        <div style={{ alignSelf: 'center' }}>
+                                            <span style={{ fontSize: 10, color: 'var(--text-tertiary)', background: 'rgba(255,255,255,0.03)', padding: '2px 8px', borderRadius: 10 }}>Son 30 gün</span>
                                         </div>
                                     </div>
                                 </div>

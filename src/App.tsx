@@ -4,6 +4,7 @@ import { Layout } from '@/app/layout';
 import { PageSkeleton } from '@/components/PageSkeleton';
 import { useUpdateSW } from '@/lib/pwa/usePWA';
 import { PWAUpdateBanner, PWAInstallButton } from '@/shared/components/pwa/PWAComponents';
+import { AuthGuard } from '@/app/auth-guard';
 
 // Lazy load auth pages
 const SignIn = lazy(() => import('@/features/auth/sign-in'));
@@ -25,12 +26,12 @@ function App() {
             <PWAUpdateBanner needRefresh={needRefresh} updateSW={updateServiceWorker} />
             <Routes>
                 {/* Auth Routes */}
-                <Route path="/sign-in" element={<SignIn />} />
-                <Route path="/sign-up" element={<SignUp />} />
-                <Route path="/forgot-password" element={<ForgotPassword />} />
+                <Route path="/sign-in" element={<AuthGuard requireAuth={false}><SignIn /></AuthGuard>} />
+                <Route path="/sign-up" element={<AuthGuard requireAuth={false}><SignUp /></AuthGuard>} />
+                <Route path="/forgot-password" element={<AuthGuard requireAuth={false}><ForgotPassword /></AuthGuard>} />
 
                 {/* Main App Routes */}
-                <Route path="/" element={<Layout />}>
+                <Route path="/" element={<AuthGuard requireAuth={true}><Layout /></AuthGuard>}>
                     <Route index element={<DashboardPage />} />
                     <Route path="dashboard" element={<Navigate to="/" replace />} />
                     <Route path="vehicles" element={<VehiclesPage />} />
