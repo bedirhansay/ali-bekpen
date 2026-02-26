@@ -1,16 +1,20 @@
-export interface ExchangeRates {
-    date: string;
-    USD: number;
-    EUR: number;
-    GBP?: number;
-    TRY: number;
-}
+export type SupportedCurrency = 'USD' | 'EUR' | 'TRY';
 
-export interface TCMBRatesResponse {
-    date: string;
+/** Response shape returned by the getDailyRates Cloud Function */
+export interface DailyRatesResponse {
+    date: string; // "YYYY-MM-DD"
     rates: {
         USD: number;
         EUR: number;
-        [key: string]: number;
     };
 }
+
+/** Firestore exchangeRates/{date} document shape */
+export interface ExchangeRateDoc {
+    USD: number;
+    EUR: number;
+    createdAt: unknown; // Firestore Timestamp (server-side)
+}
+
+/** Convenience map used in the UI: currency → rate in TRY */
+export type RateMap = Record<SupportedCurrency, number>;

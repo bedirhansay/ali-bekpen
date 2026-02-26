@@ -1,7 +1,6 @@
-import React, { useState } from 'react';
-import { Layout, Menu, Dropdown, Typography, Grid, Button, Space, Avatar } from 'antd';
+import React from 'react';
+import { Layout, Menu, Dropdown, Typography, Space, Avatar } from 'antd';
 import {
-    MenuOutlined,
     UserOutlined,
     LogoutOutlined,
     AppstoreOutlined,
@@ -12,22 +11,19 @@ import {
 import { useNavigate, useLocation } from 'react-router-dom';
 import { auth } from '@/shared/utils/firebase-config';
 import { signOut } from 'firebase/auth';
-import { MobileDrawer } from './MobileDrawer';
+import useBreakpoint from 'antd/lib/grid/hooks/useBreakpoint';
 
 const { Header: AntHeader } = Layout;
 const { Title, Text } = Typography;
-const { useBreakpoint } = Grid;
 
 export const Header: React.FC = () => {
     const screens = useBreakpoint();
     const navigate = useNavigate();
     const location = useLocation();
-    const [drawerOpen, setDrawerOpen] = useState(false);
 
     // Desktop: lg and above, Tablet: md, Mobile: sm and below
     const isMobile = !screens.md;
     const isTablet = screens.md && !screens.lg;
-    const isDesktop = screens.lg;
 
     const handleLogout = async () => {
         await signOut(auth);
@@ -78,85 +74,69 @@ export const Header: React.FC = () => {
     };
 
     return (
-        <>
-            <AntHeader className="app-header">
-                <div className="header-container">
-                    {/* Left Section: Mobile Menu + Logo */}
-                    <div className="header-left">
-                        {isMobile && (
-                            <Button
-                                type="text"
-                                icon={<MenuOutlined style={{ color: 'white', fontSize: '20px' }} />}
-                                onClick={() => setDrawerOpen(true)}
-                                className="mobile-menu-btn"
-                            />
+        <AntHeader className="app-header">
+            <div className="header-container" style={{ padding: isMobile ? '0 8px' : '0' }}>
+                {/* Left Section: Logo */}
+                <div className="header-left" style={{ gap: isMobile ? '8px' : '16px' }}>
+                    <div className="logo-section" onClick={() => navigate('/dashboard')} style={{ gap: isMobile ? '8px' : '12px' }}>
+                        <div className="logo-box">BH</div>
+                        {!isMobile && (
+                            <Title level={4} className="logo-text">
+                                Bekpen<span>Hesap</span>
+                            </Title>
                         )}
-
-                        <div className="logo-section" onClick={() => navigate('/dashboard')}>
-                            <div className="logo-box">BH</div>
-                            {!isMobile && (
-                                <Title level={4} className="logo-text">
-                                    Bekpen<span>Hesap</span>
-                                </Title>
-                            )}
-                        </div>
-                    </div>
-
-                    {/* Middle Section: Desktop Navigation */}
-                    {(isDesktop || isTablet) && (
-                        <div className="header-center">
-                            <Menu
-                                mode="horizontal"
-                                selectedKeys={[location.pathname]}
-                                items={menuItems}
-                                onClick={({ key }) => navigate(key)}
-                                className="desktop-nav"
-                            />
-                        </div>
-                    )}
-
-                    {/* Right Section: Language + Avatar */}
-                    <div className="header-right">
-                        <Space size={isMobile ? 8 : 16}>
-                            {/* Language Switcher */}
-                            {!isMobile && (
-                                <Dropdown menu={languageMenuItems} placement="bottomRight" trigger={['click']}>
-                                    <Button type="text" className="lang-btn">
-                                        <Space size={4}>
-                                            <GlobalOutlined />
-                                            {!isTablet && <span>TR</span>}
-                                            <CaretDownOutlined style={{ fontSize: '10px', opacity: 0.5 }} />
-                                        </Space>
-                                    </Button>
-                                </Dropdown>
-                            )}
-
-                            {/* User Avatar */}
-                            <Dropdown menu={userMenuItems} placement="bottomRight" trigger={['click']}>
-                                <div className="user-profile-trigger">
-                                    {!isMobile && (
-                                        <div className="user-info">
-                                            <Text className="user-name">
-                                                {auth.currentUser?.email?.split('@')[0] || 'User'}
-                                            </Text>
-                                            <Text className="user-role">Admin</Text>
-                                        </div>
-                                    )}
-                                    <Avatar
-                                        icon={<UserOutlined />}
-                                        className="user-avatar"
-                                    />
-                                </div>
-                            </Dropdown>
-                        </Space>
                     </div>
                 </div>
-            </AntHeader>
 
-            <MobileDrawer
-                open={drawerOpen}
-                onClose={() => setDrawerOpen(false)}
-            />
-        </>
+                {/* Middle Section: Navigation always visible */}
+                <div className="header-center" style={{ padding: isMobile ? '0 4px' : '0 24px', flex: isMobile ? 'none' : 1 }}>
+                    <Menu
+                        mode="horizontal"
+                        selectedKeys={[location.pathname]}
+                        items={menuItems}
+                        onClick={({ key }) => navigate(key)}
+                        className="desktop-nav"
+                        style={{ gap: isMobile ? '2px' : '8px' }}
+                    />
+                </div>
+
+                {/* Right Section: Language + Avatar */}
+                <div className="header-right">
+                    <Space size={isMobile ? 4 : 16}>
+                        {/* Language Switcher */}
+                        {!isMobile && (
+                            <Dropdown menu={languageMenuItems} placement="bottomRight" trigger={['click']}>
+                                <div className="lang-btn" style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
+                                    <Space size={4}>
+                                        <GlobalOutlined />
+                                        {!isTablet && <span>TR</span>}
+                                        <CaretDownOutlined style={{ fontSize: '10px', opacity: 0.5 }} />
+                                    </Space>
+                                </div>
+                            </Dropdown>
+                        )}
+
+                        {/* User Avatar */}
+                        <Dropdown menu={userMenuItems} placement="bottomRight" trigger={['click']}>
+                            <div className="user-profile-trigger" style={{ padding: isMobile ? '4px' : '4px 6px 4px 12px' }}>
+                                {!isMobile && (
+                                    <div className="user-info">
+                                        <Text className="user-name">
+                                            {auth.currentUser?.email?.split('@')[0] || 'User'}
+                                        </Text>
+                                        <Text className="user-role">Admin</Text>
+                                    </div>
+                                )}
+                                <Avatar
+                                    icon={<UserOutlined />}
+                                    className="user-avatar"
+                                    style={{ width: isMobile ? 28 : 32, height: isMobile ? 28 : 32 }}
+                                />
+                            </div>
+                        </Dropdown>
+                    </Space>
+                </div>
+            </div>
+        </AntHeader>
     );
 };

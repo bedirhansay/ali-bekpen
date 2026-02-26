@@ -6,10 +6,10 @@ import {
     getDocument,
     queryWithPagination,
     updateDocument,
-    getTypedCollection,
     type PaginationParams,
 } from '@/shared/utils/firebase';
-import { where, type QueryConstraint, query, getDocs } from 'firebase/firestore';
+import { collection, where, orderBy, type QueryConstraint, query, getDocs, Timestamp } from 'firebase/firestore';
+import { db } from '@/shared/utils/firebase-config';
 import { CreateTransactionDTO, Transaction, TransactionFilters, UpdateTransactionDTO } from '../types';
 
 export const getTransactions = async (
@@ -101,18 +101,19 @@ export const getVehicleSummary = async (vehicleId: string) => {
 };
 
 export const getYearlyTransactions = async (year: number) => {
-    const startOfYear = new Date(year, 0, 1);
-    const endOfYear = new Date(year, 11, 31, 23, 59, 59);
+    const startOfYear = Timestamp.fromDate(new Date(year, 0, 1));
+    const endOfYear = Timestamp.fromDate(new Date(year, 11, 31, 23, 59, 59, 999));
 
-    const constraints = [
+    // IMPORTANT: Firestore requires orderBy on the same field used for range filters.
+    // Without orderBy('date'), Firestore will silently return 0 results or throw
+    // a FAILED_PRECONDITION index error.
+    const q = query(
+        collection(db, COLLECTIONS.TRANSACTIONS),
         where('date', '>=', startOfYear),
         where('date', '<=', endOfYear),
-    ];
+        orderBy('date', 'asc')
+    );
 
-    // Since we need to group by month, we'll fetch all transactions for the year.
-    // In a large production app, we'd use aggregation functions or a separate summary collection.
-    // For this MVP, client-side grouping is requested for performance optimization.
-    const q = query(getTypedCollection<Transaction>(COLLECTIONS.TRANSACTIONS), ...constraints);
     const snapshot = await getDocs(q);
 
     return snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Transaction));

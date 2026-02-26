@@ -48,5 +48,12 @@ service cloud.firestore {
     match /ledger/{ledgerId} {
       allow read, write: if isAuthenticated();
     }
+    
+    // Exchange rates cache — written only by Cloud Functions (admin SDK bypasses rules).
+    // Authenticated users can read for transparency/debugging, but cannot write directly.
+    match /exchangeRates/{dateId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Only Cloud Function admin SDK writes here
+    }
   }
 }

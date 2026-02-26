@@ -1,5 +1,6 @@
-// Service Worker Update Handler
-if ('serviceWorker' in navigator) {
+// Service Worker — only register in production builds.
+// In development (localhost), SW is skipped so Vite HMR works correctly.
+if ('serviceWorker' in navigator && location.hostname !== 'localhost' && location.hostname !== '127.0.0.1') {
   window.addEventListener('load', () => {
     navigator.serviceWorker
       .register('/sw.js')
@@ -19,7 +20,6 @@ if ('serviceWorker' in navigator) {
           newWorker.addEventListener('statechange', () => {
             if (newWorker.state === 'installed') {
               if (navigator.serviceWorker.controller) {
-                // New content is available, reload the page
                 console.log('New content available, reloading...');
                 window.location.reload();
               }
@@ -27,8 +27,8 @@ if ('serviceWorker' in navigator) {
           });
         });
       })
-      .catch((registrationError) => {
-        console.log('SW registration failed: ', registrationError);
+      .catch((err) => {
+        console.log('SW registration failed: ', err);
       });
   });
 }

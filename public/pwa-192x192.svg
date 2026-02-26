@@ -1,6 +1,0 @@
-<svg width="192" height="192" viewBox="0 0 192 192" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <rect width="192" height="192" rx="24" fill="#3B82F6"/>
-  <path d="M48 144V96H72V120H120V96H144V144H48Z" fill="white"/>
-  <path d="M96 48C104.837 48 112 55.163 112 64C112 72.837 104.837 80 96 80C87.163 80 80 72.837 80 64C80 55.163 87.163 48 96 48Z" fill="white"/>
-  <text x="96" y="170" text-anchor="middle" fill="white" font-family="Arial, sans-serif" font-size="24" font-weight="bold">Say</text>
-</svg>

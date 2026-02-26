@@ -1,17 +1,26 @@
 import { Route, Routes, Navigate } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { Layout } from '@/app/layout';
+import { PageSkeleton } from '@/components/PageSkeleton';
+import { useUpdateSW } from '@/lib/pwa/usePWA';
+import { PWAUpdateBanner, PWAInstallButton } from '@/shared/components/pwa/PWAComponents';
 
+// Lazy load auth pages
 const SignIn = lazy(() => import('@/features/auth/sign-in'));
 const SignUp = lazy(() => import('@/features/auth/sign-up'));
 const ForgotPassword = lazy(() => import('@/features/auth/forgot-password'));
+
+// Lazy load main app pages
+const DashboardPage = lazy(() => import('@/features/dashboard/pages/DashboardPage'));
 const VehiclesPage = lazy(() => import('@/features/vehicles/pages/list'));
 const VehicleDetailPage = lazy(() => import('@/features/vehicles/pages/detail'));
-const DashboardPage = lazy(() => import('@/pages/DashboardPage'));
 
 function App() {
+    const { needRefresh, updateServiceWorker } = useUpdateSW();
+
     return (
-        <Suspense fallback={<div className="flex h-screen items-center justify-center">Yükleniyor...</div>}>
+        <Suspense fallback={<PageSkeleton />}>
+            <PWAUpdateBanner needRefresh={needRefresh} updateSW={updateServiceWorker} />
             <Routes>
                 {/* Auth Routes */}
                 <Route path="/sign-in" element={<SignIn />} />
@@ -28,6 +37,7 @@ function App() {
                 {/* Fallback */}
                 <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>
+            <PWAInstallButton />
         </Suspense>
     );
 }

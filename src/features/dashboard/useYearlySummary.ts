@@ -2,7 +2,8 @@ import { useQuery } from '@tanstack/react-query';
 import { collection, query, where, getDocs, Timestamp, orderBy } from 'firebase/firestore';
 import { db } from '@/shared/utils/firebase-config';
 import { dashboardKeys } from './api/keys';
-import { MonthlySummary, Transaction, YearlySummary } from '@/types';
+import { MonthlySummary, YearlySummary } from '@/types';
+import { Transaction } from '@/features/transactions/types';
 
 export function useYearlySummary(year: number) {
     return useQuery<YearlySummary>({
@@ -36,13 +37,15 @@ export function useYearlySummary(year: number) {
                 // Month index (0-11) + 1 => (1-12)
                 const dateObj = data.date.toDate();
                 const monthIndex = dateObj.getMonth() + 1;
+                const type = data.type?.toUpperCase();
+                const amount = data.amountTRY ?? data.amount ?? 0;
 
-                if (data.type === 'income') {
-                    monthlyData[monthIndex].incomeTRY += data.amountTRY;
-                    totalIncomeTRY += data.amountTRY;
-                } else if (data.type === 'expense') {
-                    monthlyData[monthIndex].expenseTRY += data.amountTRY;
-                    totalExpenseTRY += data.amountTRY;
+                if (type === 'INCOME') {
+                    monthlyData[monthIndex].incomeTRY += amount;
+                    totalIncomeTRY += amount;
+                } else if (type === 'EXPENSE') {
+                    monthlyData[monthIndex].expenseTRY += amount;
+                    totalExpenseTRY += amount;
                 }
             });
 

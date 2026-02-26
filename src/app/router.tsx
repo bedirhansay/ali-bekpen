@@ -1,15 +1,16 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { lazy, Suspense } from 'react';
 import { Layout } from './layout';
+import { PageSkeleton } from '@/components/PageSkeleton';
 
-const DashboardPage = lazy(() => import('@/features/dashboard/pages/index'));
+const DashboardPage = lazy(() => import('@/features/dashboard/pages/DashboardPage'));
 const VehiclesPage = lazy(() => import('@/features/vehicles/pages/list'));
 const VehicleDetailPage = lazy(() => import('@/features/vehicles/pages/detail'));
 const SignInPage = lazy(() => import('@/features/auth/sign-in/index'));
 
 export const Router = () => {
     return (
-        <Suspense fallback={<div style={{ display: 'flex', height: '100vh', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>Yükleniyor...</div>}>
+        <Suspense fallback={<PageSkeleton />}>
             <Routes>
                 {/* Auth Routes */}
                 <Route path="/sign-in" element={<SignInPage />} />

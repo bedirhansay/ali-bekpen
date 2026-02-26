@@ -2,8 +2,9 @@ import { Plus, Edit, Trash2, ChevronLeft } from 'lucide-react';
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, InputNumber, Row, Col, Typography, message, Popconfirm, Drawer, Select, DatePicker, Segmented, Skeleton, Spin } from 'antd';
+import { Button, Form, Input, InputNumber, Row, Col, Typography, message, Popconfirm, Drawer, Select, DatePicker, Segmented, Skeleton, Spin, Alert } from 'antd';
 import dayjs from 'dayjs';
+import toast from 'react-hot-toast';
 
 import { getVehicle, deleteVehicle } from '../../api';
 import {
@@ -14,7 +15,8 @@ import {
     getVehicleSummary
 } from '@/features/transactions/api';
 import { useExchangeRates } from '@/features/exchangeRates/hooks/useExchangeRates';
-import { Transaction, CreateTransactionDTO, TransactionFilters } from '@/features/transactions/types';
+import { getDailyRates } from '@/features/exchangeRates/api';
+import { Transaction, CreateTransactionDTO, TransactionFilters, CurrencyCode } from '@/features/transactions/types';
 import { EmptyState } from '@/features/transactions/components/EmptyState';
 import { TransactionCard } from '@/features/transactions/components/TransactionCard';
 import { DateFilter } from '@/features/transactions/components/DateFilter';
@@ -27,13 +29,16 @@ const VehicleDetailPage = () => {
     const [isDrawerOpen, setIsDrawerOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
     const [filters, setFilters] = useState<TransactionFilters>({ type: 'ALL', dateRange: null });
+    const [isSaving, setIsSaving] = useState(false);
 
     const [form] = Form.useForm();
     const queryClient = useQueryClient();
-    const { data: rates } = useExchangeRates();
+
+    // Live rate map for the form's currency auto-fill
+    const { data: rates, isError: ratesError } = useExchangeRates();
 
     const amount = Form.useWatch('amount', form);
-    const currencyCode = Form.useWatch('currencyCode', form);
+    const currencyCode = Form.useWatch('currencyCode', form) as CurrencyCode | undefined;
     const selectedRate = Form.useWatch('tcmbExchangeRate', form);
 
     const { data: vehicle, isLoading: isLoadingVehicle } = useQuery({
@@ -54,11 +59,13 @@ const VehicleDetailPage = () => {
         enabled: !!vehicleId,
     });
 
+    // Auto-fill exchange rate when currency changes
     useEffect(() => {
+        if (!currencyCode) return;
         if (currencyCode === 'TRY') {
             form.setFieldsValue({ tcmbExchangeRate: 1 });
-        } else if (rates && currencyCode && rates[currencyCode as keyof typeof rates]) {
-            form.setFieldsValue({ tcmbExchangeRate: rates[currencyCode as keyof typeof rates] });
+        } else if (rates && rates[currencyCode]) {
+            form.setFieldsValue({ tcmbExchangeRate: rates[currencyCode] });
         }
     }, [currencyCode, rates, form]);
 
@@ -66,6 +73,8 @@ const VehicleDetailPage = () => {
         if (amount && selectedRate) return amount * selectedRate;
         return 0;
     }, [amount, selectedRate]);
+
+    // ── Mutations ─────────────────────────────────────────────────────────────
 
     const createMutation = useMutation({
         mutationFn: createTransaction,
@@ -106,6 +115,8 @@ const VehicleDetailPage = () => {
         queryClient.invalidateQueries({ queryKey: ['transactions', vehicleId] });
     };
 
+    // ── Drawer open/close ─────────────────────────────────────────────────────
+
     const handleOpen = (transaction?: Transaction) => {
         if (transaction) {
             setEditingTransaction(transaction);
@@ -125,24 +136,75 @@ const VehicleDetailPage = () => {
         setIsDrawerOpen(false);
         setEditingTransaction(null);
         form.resetFields();
+        setIsSaving(false);
     };
 
-    const onFinish = (values: any) => {
+    // ── Form submit — exchange rate frozen at save time ───────────────────────
+
+    const onFinish = async (values: any) => {
+        const currency: CurrencyCode = values.currencyCode;
+
+        setIsSaving(true);
+
+        // Determine frozen exchange rate
+        let frozenRate: number;
+        if (currency === 'TRY') {
+            frozenRate = 1;
+        } else {
+            // If user has manually entered a value, prefer that.
+            // Otherwise, fetch a fresh rate from the Cloud Function at save time
+            // to ensure it is frozen at the moment of the transaction.
+            const manualRate = values.tcmbExchangeRate;
+            if (manualRate && manualRate > 0) {
+                frozenRate = manualRate;
+            } else {
+                try {
+                    const ratesResponse = await getDailyRates();
+                    const fetchedRate = ratesResponse.rates[currency as keyof typeof ratesResponse.rates];
+                    if (!fetchedRate) {
+                        throw new Error(`${currency} için kur alınamadı`);
+                    }
+                    frozenRate = fetchedRate;
+                } catch {
+                    toast.error('Kur bilgisi alınamadı');
+                    setIsSaving(false);
+                    return; // Prevent save if currency is not TRY and rate is unavailable
+                }
+            }
+        }
+
         const payload: CreateTransactionDTO = {
-            ...values,
             vehicleId: vehicleId!,
+            type: values.type,
             date: values.date.toDate(),
-            amountTRY: values.amount * values.tcmbExchangeRate,
+            description: values.description ?? null,
+            amount: values.amount,
+            currencyCode: currency,
+            tcmbExchangeRate: frozenRate,
+            amountTRY: values.amount * frozenRate,
         };
+
         if (editingTransaction) {
             updateMutation.mutate({ id: editingTransaction.id, data: payload });
         } else {
             createMutation.mutate(payload);
         }
+
+        setIsSaving(false);
     };
 
-    if (isLoadingVehicle) return <div style={{ height: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spin size="large" /></div>;
-    if (!vehicle) return <div style={{ color: 'var(--text-primary)', textAlign: 'center', padding: 40 }}>Araç bulunamadı.</div>;
+    // ── Render ────────────────────────────────────────────────────────────────
+
+    if (isLoadingVehicle) return (
+        <div style={{ height: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Spin size="large" />
+        </div>
+    );
+    if (!vehicle) return (
+        <div style={{ color: 'var(--text-primary)', textAlign: 'center', padding: 40 }}>
+            Araç bulunamadı.
+        </div>
+    );
 
     const netValue = summary?.netTRY || 0;
     const isPositive = netValue >= 0;
@@ -256,6 +318,17 @@ const VehicleDetailPage = () => {
                     />
                 </div>
 
+                {/* Exchange rate error banner */}
+                {ratesError && (
+                    <Alert
+                        message="TCMB kur bilgisi alınamadı. TRY dışı işlem ekleyemezsiniz."
+                        type="warning"
+                        showIcon
+                        style={{ marginBottom: 12, borderRadius: 10 }}
+                        closable
+                    />
+                )}
+
                 {/* Full-width pill filter + CTA row */}
                 <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
                     {/* Pill tab bar */}
@@ -363,6 +436,7 @@ const VehicleDetailPage = () => {
                 )}
             </div>
 
+            {/* Transaction Drawer */}
             <Drawer
                 title={editingTransaction ? 'İşlem Detayı Düzenle' : 'Yeni İşlem Ekle'}
                 width={480}
@@ -395,9 +469,12 @@ const VehicleDetailPage = () => {
                             <Form.Item name="currencyCode" label="Para Birimi" rules={[{ required: true }]}>
                                 <Select>
                                     <Select.Option value="TRY">TRY — Türk Lirası</Select.Option>
-                                    <Select.Option value="USD">USD — Amerikan Doları</Select.Option>
-                                    <Select.Option value="EUR">EUR — Euro</Select.Option>
-                                    <Select.Option value="GBP">GBP — İngiliz Sterlini</Select.Option>
+                                    <Select.Option value="USD" disabled={ratesError}>
+                                        USD — Amerikan Doları{ratesError ? ' (kur yok)' : ''}
+                                    </Select.Option>
+                                    <Select.Option value="EUR" disabled={ratesError}>
+                                        EUR — Euro{ratesError ? ' (kur yok)' : ''}
+                                    </Select.Option>
                                 </Select>
                             </Form.Item>
                         </Col>
@@ -408,20 +485,24 @@ const VehicleDetailPage = () => {
                         </Col>
                     </Row>
 
-                    <Form.Item label="Günlük Kur (TCMB)">
+                    <Form.Item label="Günlük Kur (TCMB — ForexSelling)">
                         <Row gutter={8}>
                             <Col span={18}>
                                 <Form.Item name="tcmbExchangeRate" noStyle rules={[{ required: true }]}>
-                                    <InputNumber style={{ width: '100%' }} precision={4} />
+                                    <InputNumber
+                                        style={{ width: '100%' }}
+                                        precision={4}
+                                        disabled={currencyCode === 'TRY'}
+                                    />
                                 </Form.Item>
                             </Col>
                             <Col span={6}>
                                 <Button
                                     block
-                                    disabled={currencyCode === 'TRY' || !rates}
+                                    disabled={currencyCode === 'TRY' || !rates || ratesError}
                                     onClick={() => {
-                                        if (rates && currencyCode && rates[currencyCode as keyof typeof rates]) {
-                                            form.setFieldsValue({ tcmbExchangeRate: rates[currencyCode as keyof typeof rates] });
+                                        if (rates && currencyCode && rates[currencyCode]) {
+                                            form.setFieldsValue({ tcmbExchangeRate: rates[currencyCode] });
                                         }
                                     }}
                                 >
@@ -448,7 +529,7 @@ const VehicleDetailPage = () => {
                         type="primary"
                         block
                         onClick={() => form.submit()}
-                        loading={createMutation.isPending || updateMutation.isPending}
+                        loading={isSaving || createMutation.isPending || updateMutation.isPending}
                         style={{
                             marginTop: 24,
                             height: 48,

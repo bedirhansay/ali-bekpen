@@ -9,8 +9,14 @@ export const useYearlySummary = (year: number) => {
         queryFn: async () => {
             const transactions = await getYearlyTransactions(year);
 
+            // DEBUG — remove after confirming data is coming through
+            console.log(`[Dashboard] getYearlyTransactions(${year}) returned ${transactions.length} docs`);
+            if (transactions.length > 0) {
+                console.log('[Dashboard] First transaction sample:', JSON.stringify(transactions[0], null, 2));
+            }
+
             const months = [
-                { name: 'Ocak', income: 0, expense: 0 },
+                { name: 'Ocaks', income: 0, expense: 0 },
                 { name: 'Şubat', income: 0, expense: 0 },
                 { name: 'Mart', income: 0, expense: 0 },
                 { name: 'Nisan', income: 0, expense: 0 },
@@ -31,12 +37,16 @@ export const useYearlySummary = (year: number) => {
                 const txDate = (tx.date as any).toDate ? (tx.date as any).toDate() : tx.date;
                 const monthIdx = dayjs(txDate).month();
 
-                if (tx.type === 'INCOME') {
-                    months[monthIdx].income += tx.amountTRY;
-                    totalIncomeTRY += tx.amountTRY;
-                } else {
-                    months[monthIdx].expense += tx.amountTRY;
-                    totalExpenseTRY += tx.amountTRY;
+                // Fallback to tx.amount for legacy transactions that don't have amountTRY yet
+                const value = tx.amountTRY ?? tx.amount ?? 0;
+                const type = tx.type?.toUpperCase();
+
+                if (type === 'INCOME') {
+                    months[monthIdx].income += value;
+                    totalIncomeTRY += value;
+                } else if (type === 'EXPENSE') {
+                    months[monthIdx].expense += value;
+                    totalExpenseTRY += value;
                 }
             });
 

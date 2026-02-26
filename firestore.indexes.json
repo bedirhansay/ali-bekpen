@@ -5,6 +5,16 @@
       "queryScope": "COLLECTION",
       "fields": [
         {
+          "fieldPath": "date",
+          "order": "ASCENDING"
+        }
+      ]
+    },
+    {
+      "collectionGroup": "transactions",
+      "queryScope": "COLLECTION",
+      "fields": [
+        {
           "fieldPath": "vehicleId",
           "order": "ASCENDING"
         },
