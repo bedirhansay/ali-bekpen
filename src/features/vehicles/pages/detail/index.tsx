@@ -1,0 +1,470 @@
+import { Plus, Edit, Trash2, ChevronLeft } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { Button, Form, Input, InputNumber, Row, Col, Typography, message, Popconfirm, Drawer, Select, DatePicker, Segmented, Skeleton, Spin } from 'antd';
+import dayjs from 'dayjs';
+
+import { getVehicle, deleteVehicle } from '../../api';
+import {
+    getTransactions,
+    createTransaction,
+    updateTransaction,
+    deleteTransaction,
+    getVehicleSummary
+} from '@/features/transactions/api';
+import { useExchangeRates } from '@/features/exchangeRates/hooks/useExchangeRates';
+import { Transaction, CreateTransactionDTO, TransactionFilters } from '@/features/transactions/types';
+import { EmptyState } from '@/features/transactions/components/EmptyState';
+import { TransactionCard } from '@/features/transactions/components/TransactionCard';
+import { DateFilter } from '@/features/transactions/components/DateFilter';
+
+const { Title, Text } = Typography;
+
+const VehicleDetailPage = () => {
+    const { vehicleId } = useParams<{ vehicleId: string }>();
+    const navigate = useNavigate();
+    const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+    const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+    const [filters, setFilters] = useState<TransactionFilters>({ type: 'ALL', dateRange: null });
+
+    const [form] = Form.useForm();
+    const queryClient = useQueryClient();
+    const { data: rates } = useExchangeRates();
+
+    const amount = Form.useWatch('amount', form);
+    const currencyCode = Form.useWatch('currencyCode', form);
+    const selectedRate = Form.useWatch('tcmbExchangeRate', form);
+
+    const { data: vehicle, isLoading: isLoadingVehicle } = useQuery({
+        queryKey: ['vehicle', vehicleId],
+        queryFn: () => getVehicle(vehicleId!),
+        enabled: !!vehicleId,
+    });
+
+    const { data: summary } = useQuery({
+        queryKey: ['vehicleSummary', vehicleId],
+        queryFn: () => getVehicleSummary(vehicleId!),
+        enabled: !!vehicleId,
+    });
+
+    const { data: transactionsData, isLoading: isLoadingTransactions } = useQuery({
+        queryKey: ['transactions', vehicleId, filters],
+        queryFn: () => getTransactions(vehicleId!, { pageSize: 100 }, filters),
+        enabled: !!vehicleId,
+    });
+
+    useEffect(() => {
+        if (currencyCode === 'TRY') {
+            form.setFieldsValue({ tcmbExchangeRate: 1 });
+        } else if (rates && currencyCode && rates[currencyCode as keyof typeof rates]) {
+            form.setFieldsValue({ tcmbExchangeRate: rates[currencyCode as keyof typeof rates] });
+        }
+    }, [currencyCode, rates, form]);
+
+    const amountTRY = useMemo(() => {
+        if (amount && selectedRate) return amount * selectedRate;
+        return 0;
+    }, [amount, selectedRate]);
+
+    const createMutation = useMutation({
+        mutationFn: createTransaction,
+        onSuccess: () => {
+            message.success('İşlem kaydedildi');
+            invalidateAll();
+            handleClose();
+        },
+    });
+
+    const updateMutation = useMutation({
+        mutationFn: ({ id, data }: { id: string; data: CreateTransactionDTO }) => updateTransaction(id, data),
+        onSuccess: () => {
+            message.success('İşlem güncellendi');
+            invalidateAll();
+            handleClose();
+        },
+    });
+
+    const deleteMutation = useMutation({
+        mutationFn: deleteTransaction,
+        onSuccess: () => {
+            message.success('İşlem silindi');
+            invalidateAll();
+        },
+    });
+
+    const deleteVehicleMutation = useMutation({
+        mutationFn: deleteVehicle,
+        onSuccess: () => {
+            message.success('Araç silindi');
+            navigate('/vehicles');
+        },
+    });
+
+    const invalidateAll = () => {
+        queryClient.invalidateQueries({ queryKey: ['vehicleSummary', vehicleId] });
+        queryClient.invalidateQueries({ queryKey: ['transactions', vehicleId] });
+    };
+
+    const handleOpen = (transaction?: Transaction) => {
+        if (transaction) {
+            setEditingTransaction(transaction);
+            form.setFieldsValue({
+                ...transaction,
+                date: dayjs((transaction.date as any).toDate ? (transaction.date as any).toDate() : transaction.date),
+            });
+        } else {
+            setEditingTransaction(null);
+            form.resetFields();
+            form.setFieldsValue({ date: dayjs(), currencyCode: 'TRY', tcmbExchangeRate: 1, type: 'EXPENSE' });
+        }
+        setIsDrawerOpen(true);
+    };
+
+    const handleClose = () => {
+        setIsDrawerOpen(false);
+        setEditingTransaction(null);
+        form.resetFields();
+    };
+
+    const onFinish = (values: any) => {
+        const payload: CreateTransactionDTO = {
+            ...values,
+            vehicleId: vehicleId!,
+            date: values.date.toDate(),
+            amountTRY: values.amount * values.tcmbExchangeRate,
+        };
+        if (editingTransaction) {
+            updateMutation.mutate({ id: editingTransaction.id, data: payload });
+        } else {
+            createMutation.mutate(payload);
+        }
+    };
+
+    if (isLoadingVehicle) return <div style={{ height: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><Spin size="large" /></div>;
+    if (!vehicle) return <div style={{ color: 'var(--text-primary)', textAlign: 'center', padding: 40 }}>Araç bulunamadı.</div>;
+
+    const netValue = summary?.netTRY || 0;
+    const isPositive = netValue >= 0;
+
+    return (
+        <div className="space-y-6 animated-list-item stagger-1">
+            {/* Header Navigation */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
+                <Button
+                    type="text"
+                    icon={<ChevronLeft size={20} />}
+                    onClick={() => navigate('/vehicles')}
+                    style={{ color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', width: 40, height: 40, borderRadius: '50%' }}
+                />
+                <Text style={{ color: 'var(--text-secondary)', fontSize: 16 }}>Geri Dön</Text>
+            </div>
+
+            {/* Minimal Header Section */}
+            <div className="hero-card" style={{
+                padding: '24px 24px',
+                background: 'linear-gradient(135deg, rgba(30, 41, 59, 0.7), rgba(15, 23, 42, 0.8))',
+                borderRadius: 20,
+                position: 'relative',
+                overflow: 'hidden',
+                border: '1px solid var(--border-light)'
+            }}>
+                {/* Actions */}
+                <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 8, zIndex: 10 }}>
+                    <Button
+                        type="text"
+                        icon={<Edit size={16} />}
+                        onClick={() => message.info('Düzenleme yakında eklenecek.')}
+                        style={{
+                            color: 'rgba(255,255,255,0.6)',
+                            background: 'rgba(255,255,255,0.05)',
+                            borderRadius: '50%',
+                            width: 32, height: 32,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center'
+                        }}
+                    />
+                    <Popconfirm
+                        title="Bu aracı silmek istediğinize emin misiniz?"
+                        onConfirm={() => deleteVehicleMutation.mutate(vehicleId!)}
+                        okText="Sil"
+                        cancelText="İptal"
+                        placement="bottomRight"
+                    >
+                        <Button
+                            type="text"
+                            icon={<Trash2 size={16} />}
+                            style={{
+                                color: 'rgba(239, 68, 68, 0.6)',
+                                background: 'rgba(239, 68, 68, 0.05)',
+                                borderRadius: '50%',
+                                width: 32, height: 32,
+                                display: 'flex', alignItems: 'center', justifyContent: 'center'
+                            }}
+                        />
+                    </Popconfirm>
+                </div>
+
+                <div style={{ position: 'relative', zIndex: 2 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 4, flexWrap: 'wrap' }}>
+                        <Title level={3} style={{ color: 'white', margin: 0, fontWeight: 700 }}>{vehicle.plate}</Title>
+                        <div style={{
+                            background: isPositive ? 'rgba(34, 197, 94, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                            color: isPositive ? '#4ade80' : '#f87171',
+                            padding: '2px 10px',
+                            borderRadius: '6px',
+                            fontWeight: 700,
+                            fontSize: 12,
+                            border: `1px solid ${isPositive ? 'rgba(34, 197, 94, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
+                        }}>
+                            NET: {isPositive ? '+' : '-'}{Math.abs(netValue).toLocaleString('tr-TR')} TRY
+                        </div>
+                    </div>
+                    <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14 }}>{vehicle.name}</Text>
+
+                    <div style={{ display: 'flex', gap: 12, marginTop: 20, flexWrap: 'wrap' }}>
+                        <div style={{
+                            background: 'rgba(255,255,255,0.03)',
+                            border: '1px solid rgba(255,255,255,0.05)',
+                            padding: '10px 16px',
+                            borderRadius: 12,
+                            flex: '1 1 140px'
+                        }}>
+                            <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>Gelir</Text>
+                            <Text style={{ color: 'var(--income)', fontSize: 18, fontWeight: 700 }}>+{summary?.totalIncomeTRY?.toLocaleString('tr-TR')} ₺</Text>
+                        </div>
+                        <div style={{
+                            background: 'rgba(255,255,255,0.03)',
+                            border: '1px solid rgba(255,255,255,0.05)',
+                            padding: '10px 16px',
+                            borderRadius: 12,
+                            flex: '1 1 140px'
+                        }}>
+                            <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 11, display: 'block', fontWeight: 600, textTransform: 'uppercase' }}>Gider</Text>
+                            <Text style={{ color: 'var(--expense)', fontSize: 18, fontWeight: 700 }}>-{summary?.totalExpenseTRY?.toLocaleString('tr-TR')} ₺</Text>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Transactions Section */}
+            <div style={{ margin: '32px 0 16px 0' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, gap: 12 }}>
+                    <Title level={4} style={{ color: 'var(--text-primary)', margin: 0, fontWeight: 600 }}>İşlem Geçmişi</Title>
+                    <DateFilter
+                        value={filters.dateRange}
+                        onChange={(dates) => setFilters(prev => ({ ...prev, dateRange: dates }))}
+                    />
+                </div>
+
+                {/* Full-width pill filter + CTA row */}
+                <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+                    {/* Pill tab bar */}
+                    <div style={{
+                        flex: 1,
+                        display: 'flex',
+                        background: 'rgba(255,255,255,0.04)',
+                        border: '1px solid rgba(255,255,255,0.07)',
+                        borderRadius: 12,
+                        padding: 4,
+                        gap: 0,
+                    }}>
+                        {(['ALL', 'INCOME', 'EXPENSE'] as const).map((val) => {
+                            const labels: Record<string, string> = { ALL: 'Hepsi', INCOME: 'Gelir', EXPENSE: 'Gider' };
+                            const active = filters.type === val;
+                            return (
+                                <button
+                                    key={val}
+                                    onClick={() => setFilters(prev => ({ ...prev, type: val as any }))}
+                                    style={{
+                                        flex: 1,
+                                        height: 36,
+                                        border: 'none',
+                                        borderRadius: 9,
+                                        cursor: 'pointer',
+                                        fontWeight: active ? 700 : 500,
+                                        fontSize: 13,
+                                        transition: 'all 0.15s ease',
+                                        background: active
+                                            ? val === 'INCOME'
+                                                ? 'rgba(34,197,94,0.18)'
+                                                : val === 'EXPENSE'
+                                                    ? 'rgba(239,68,68,0.18)'
+                                                    : 'rgba(255,255,255,0.1)'
+                                            : 'transparent',
+                                        color: active
+                                            ? val === 'INCOME'
+                                                ? 'var(--income)'
+                                                : val === 'EXPENSE'
+                                                    ? 'var(--expense)'
+                                                    : 'var(--text-primary)'
+                                            : 'var(--text-secondary)',
+                                        boxShadow: active ? '0 2px 8px rgba(0,0,0,0.15)' : 'none',
+                                    }}
+                                >
+                                    {labels[val]}
+                                </button>
+                            );
+                        })}
+                    </div>
+
+                    {/* CTA Button */}
+                    <button
+                        onClick={() => handleOpen()}
+                        style={{
+                            height: 44,
+                            paddingLeft: 20,
+                            paddingRight: 20,
+                            borderRadius: 12,
+                            border: 'none',
+                            background: 'var(--accent-gradient)',
+                            color: 'white',
+                            fontWeight: 700,
+                            fontSize: 14,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            whiteSpace: 'nowrap',
+                            boxShadow: '0 4px 14px rgba(37,99,235,0.35)',
+                            transition: 'all 0.15s ease',
+                            flexShrink: 0,
+                        }}
+                        onMouseEnter={(e) => {
+                            e.currentTarget.style.transform = 'translateY(-2px)';
+                            e.currentTarget.style.boxShadow = '0 8px 20px rgba(37,99,235,0.5)';
+                        }}
+                        onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = '0 4px 14px rgba(37,99,235,0.35)';
+                        }}
+                    >
+                        <Plus size={16} strokeWidth={2.5} />
+                        Yeni İşlem
+                    </button>
+                </div>
+            </div>
+
+            {/* Transaction Cards List */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                {isLoadingTransactions ? (
+                    <Skeleton active />
+                ) : transactionsData?.items.length === 0 ? (
+                    <EmptyState onAdd={() => handleOpen()} />
+                ) : (
+                    transactionsData?.items.map((tx, idx) => (
+                        <TransactionCard
+                            key={tx.id}
+                            transaction={tx}
+                            index={idx}
+                            onEdit={handleOpen}
+                            onDelete={(id) => deleteMutation.mutate(id)}
+                        />
+                    ))
+                )}
+            </div>
+
+            <Drawer
+                title={editingTransaction ? 'İşlem Detayı Düzenle' : 'Yeni İşlem Ekle'}
+                width={480}
+                onClose={handleClose}
+                open={isDrawerOpen}
+                maskStyle={{ backdropFilter: 'blur(8px)' }}
+            >
+                <Form form={form} layout="vertical" onFinish={onFinish} size="large">
+                    <Form.Item name="type" label="İşlem Yönü" rules={[{ required: true }]}>
+                        <Segmented
+                            block
+                            options={[
+                                { label: 'Gelir (+)', value: 'INCOME' },
+                                { label: 'Gider (-)', value: 'EXPENSE' },
+                            ]}
+                            style={{ padding: 4, background: 'rgba(255,255,255,0.05)' }}
+                        />
+                    </Form.Item>
+
+                    <Form.Item name="date" label="İşlem Tarihi" rules={[{ required: true }]}>
+                        <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
+                    </Form.Item>
+
+                    <Form.Item name="description" label="Açıklama (isteğe bağlı)">
+                        <Input.TextArea rows={3} placeholder="Açıklama girilmedi" />
+                    </Form.Item>
+
+                    <Row gutter={16}>
+                        <Col span={10}>
+                            <Form.Item name="currencyCode" label="Para Birimi" rules={[{ required: true }]}>
+                                <Select>
+                                    <Select.Option value="TRY">TRY — Türk Lirası</Select.Option>
+                                    <Select.Option value="USD">USD — Amerikan Doları</Select.Option>
+                                    <Select.Option value="EUR">EUR — Euro</Select.Option>
+                                    <Select.Option value="GBP">GBP — İngiliz Sterlini</Select.Option>
+                                </Select>
+                            </Form.Item>
+                        </Col>
+                        <Col span={14}>
+                            <Form.Item name="amount" label="Tutar" rules={[{ required: true, type: 'number', min: 0.01 }]}>
+                                <InputNumber style={{ width: '100%' }} precision={2} />
+                            </Form.Item>
+                        </Col>
+                    </Row>
+
+                    <Form.Item label="Günlük Kur (TCMB)">
+                        <Row gutter={8}>
+                            <Col span={18}>
+                                <Form.Item name="tcmbExchangeRate" noStyle rules={[{ required: true }]}>
+                                    <InputNumber style={{ width: '100%' }} precision={4} />
+                                </Form.Item>
+                            </Col>
+                            <Col span={6}>
+                                <Button
+                                    block
+                                    disabled={currencyCode === 'TRY' || !rates}
+                                    onClick={() => {
+                                        if (rates && currencyCode && rates[currencyCode as keyof typeof rates]) {
+                                            form.setFieldsValue({ tcmbExchangeRate: rates[currencyCode as keyof typeof rates] });
+                                        }
+                                    }}
+                                >
+                                    TCMB
+                                </Button>
+                            </Col>
+                        </Row>
+                    </Form.Item>
+
+                    <div style={{
+                        marginTop: 32,
+                        padding: 24,
+                        borderRadius: 12,
+                        background: 'rgba(37, 99, 235, 0.1)',
+                        border: '1px solid rgba(37, 99, 235, 0.2)'
+                    }}>
+                        <Text style={{ color: 'var(--accent-blue)', display: 'block', marginBottom: 4 }}>Hesaplanan TRY Karşılığı</Text>
+                        <Title level={2} style={{ color: 'var(--text-primary)', margin: 0 }}>
+                            {amountTRY.toLocaleString('tr-TR', { minimumFractionDigits: 2 })} ₺
+                        </Title>
+                    </div>
+
+                    <Button
+                        type="primary"
+                        block
+                        onClick={() => form.submit()}
+                        loading={createMutation.isPending || updateMutation.isPending}
+                        style={{
+                            marginTop: 24,
+                            height: 48,
+                            borderRadius: 12,
+                            background: 'var(--accent-gradient)',
+                            border: 'none',
+                            fontWeight: 700,
+                            fontSize: 16,
+                        }}
+                    >
+                        Kaydet
+                    </Button>
+                </Form>
+            </Drawer>
+        </div>
+    );
+};
+
+export default VehicleDetailPage;
