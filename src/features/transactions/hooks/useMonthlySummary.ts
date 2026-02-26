@@ -16,6 +16,7 @@ export const useMonthlySummary = (vehicleId: string) => {
         queryKey: ['monthlySummary', vehicleId, monthKey],
         queryFn: () => getMonthlySummary(vehicleId, firstDay, lastDay),
         enabled: !!vehicleId,
+        staleTime: 60 * 1000, // 1 minute stale time for performance
     });
 
     return {

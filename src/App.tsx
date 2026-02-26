@@ -17,6 +17,7 @@ const VehiclesPage = lazy(() => import('@/features/vehicles/pages/list'));
 const VehicleDetailPage = lazy(() => import('@/features/vehicles/pages/detail'));
 const CategoryManagementPage = lazy(() => import('@/features/categories/pages/CategoryManagementPage'));
 const AnalyticsPage = lazy(() => import('@/pages/analytics/AnalyticsPage'));
+const SeferDetailPage = lazy(() => import('@/features/sefers/pages/SeferDetailPage'));
 
 function App() {
     const { needRefresh, updateServiceWorker } = useUpdateSW();
@@ -36,6 +37,7 @@ function App() {
                     <Route path="dashboard" element={<Navigate to="/" replace />} />
                     <Route path="vehicles" element={<VehiclesPage />} />
                     <Route path="vehicles/:vehicleId" element={<VehicleDetailPage />} />
+                    <Route path="vehicles/:vehicleId/sefer/:seferId" element={<SeferDetailPage />} />
                     <Route path="categories" element={<CategoryManagementPage />} />
                     <Route path="analytics" element={<AnalyticsPage />} />
                 </Route>

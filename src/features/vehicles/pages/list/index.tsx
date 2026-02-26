@@ -314,7 +314,7 @@ const VehiclesPage = () => {
                                         }}
                                             className="hover:bg-white/10 hover:text-white"
                                         >
-                                            <span style={{ fontSize: 14, fontWeight: 500 }}>Detaylara Git</span>
+                                            <span style={{ fontSize: 14, fontWeight: 500 }}>Seferleri Gör</span>
                                             <ArrowRight size={16} />
                                         </div>
                                     </Link>

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Popconfirm } from 'antd';
-import { ArrowUpRight, ArrowDownLeft, Calendar, Trash2, Tag } from 'lucide-react';
+import { ArrowUpRight, ArrowDownLeft, Calendar, Trash2, Tag, CheckCircle2, AlertCircle } from 'lucide-react';
 import dayjs from 'dayjs';
 import { Transaction } from '../types';
 import { formatCurrency } from '@/shared/utils/formatters';
@@ -102,6 +102,17 @@ export const TransactionCard: React.FC<TransactionCardProps> = React.memo(({
                         <Calendar size={12} />
                         {date}
                     </span>
+                    {tx.status === 'PENDING' ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#f59e0b', fontWeight: 600 }}>
+                            <AlertCircle size={12} />
+                            Bekliyor
+                        </span>
+                    ) : (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 3, color: '#22c55e', fontWeight: 600 }}>
+                            <CheckCircle2 size={12} />
+                            {tx.paymentMethod === 'TRANSFER' ? 'Havale' : tx.paymentMethod === 'CREDIT_CARD' ? 'K.Kartı' : 'Nakit'}
+                        </span>
+                    )}
                     {tx.currencyCode !== 'TRY' && (
                         <span>Kur: {tx.tcmbExchangeRate.toFixed(2)}</span>
                     )}
