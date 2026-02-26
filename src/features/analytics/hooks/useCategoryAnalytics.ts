@@ -5,10 +5,11 @@ import { useCategories } from '../../categories/hooks';
 import { TransactionType } from '../../transactions/types';
 
 export const useCategoryAnalytics = (filters: AnalyticsFilters) => {
-    const { data: categories } = useCategories();
+    const { data: categories, isLoading: isCategoriesLoading } = useCategories();
 
     return useQuery({
-        queryKey: ['analytics', 'categories', filters],
+        queryKey: ['analytics', 'categories', filters, categories?.length],
+        enabled: !isCategoriesLoading && !!categories,
         queryFn: async () => {
             const transactions = await getFilteredTransactions(filters);
             const safeCategories = categories || [];
@@ -59,6 +60,5 @@ export const useCategoryAnalytics = (filters: AnalyticsFilters) => {
 
             return results.sort((a, b) => b.total - a.total);
         },
-        enabled: true
     });
 };

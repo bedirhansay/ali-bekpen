@@ -9,7 +9,7 @@ export const useCategories = () => {
     return useQuery<ICategory[], Error>({
         queryKey: CATEGORIES_QUERY_KEY,
         queryFn: seedCategoriesIfEmpty,
-        staleTime: 5 * 60 * 1000,
+        staleTime: Infinity,
     });
 };
 

@@ -3,22 +3,25 @@ import { Popconfirm } from 'antd';
 import { ArrowUpRight, ArrowDownLeft, Calendar, Trash2, Tag } from 'lucide-react';
 import dayjs from 'dayjs';
 import { Transaction } from '../types';
-import { useCategories } from '@/features/categories/hooks';
 import { formatCurrency } from '@/shared/utils/formatters';
 
 interface TransactionCardProps {
     transaction: Transaction;
+    categoryName?: string;
     onEdit: (tx: Transaction) => void;
     onDelete: (id: string) => void;
     index: number;
 }
 
-export const TransactionCard: React.FC<TransactionCardProps> = ({ transaction: tx, onEdit, onDelete, index }) => {
+export const TransactionCard: React.FC<TransactionCardProps> = React.memo(({
+    transaction: tx,
+    categoryName = 'Kategori Yok',
+    onEdit,
+    onDelete,
+    index
+}) => {
     const isIncome = tx.type === 'INCOME';
     const date = dayjs((tx.date as any).toDate ? (tx.date as any).toDate() : tx.date).format('DD.MM.YYYY HH:mm');
-
-    const { data: categories } = useCategories();
-    const categoryName = categories?.find(c => c.id === tx.categoryId)?.name || 'Kategori Yok';
 
     return (
         <div
@@ -158,4 +161,4 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ transaction: t
             </div>
         </div>
     );
-};
+});

@@ -1,6 +1,5 @@
-import { useYearlySummary } from '@/features/dashboard/useYearlySummary';
 import { useYearState } from '@/features/dashboard/yearState';
-import { useCategoryBreakdown } from '@/features/categories/useCategoryBreakdown';
+import { useDashboardData } from '@/features/dashboard/hooks/useDashboardData';
 import { Alert, Button, Card, Col, Flex, Row, Select, Spin, Typography } from 'antd';
 import { RefreshCcw } from 'lucide-react';
 import { useState } from 'react';
@@ -25,8 +24,7 @@ const CardStyle = {
 
 export default function DashboardPage() {
     const { year, setYear, currentYear } = useYearState();
-    const { data, isLoading, isFetching, error, refetch } = useYearlySummary(year);
-    const { data: categoryData } = useCategoryBreakdown(year);
+    const { data, isLoading, isFetching, error, refetch } = useDashboardData(year);
     const [isRefreshing, setIsRefreshing] = useState(false);
 
     const handleRefresh = async () => {
@@ -141,15 +139,15 @@ export default function DashboardPage() {
                     </Row>
 
                     {/* Category Breakdown */}
-                    {categoryData && (categoryData.expenseByCategory.length > 0 || categoryData.incomeByCategory.length > 0) && (
+                    {data.categoryBreakdown && (data.categoryBreakdown.expenseByCategory.length > 0 || data.categoryBreakdown.incomeByCategory.length > 0) && (
                         <div className="mb-10">
                             <Title level={4} className="!mb-4">Kategori Dağılımı</Title>
                             <Row gutter={[24, 24]}>
                                 <Col xs={24} md={12}>
                                     <Card style={CardStyle} className="glass-card" bordered={false} title={<span style={{ color: 'var(--expense)' }}>En Çok Gider (Top 3)</span>}>
                                         <Flex vertical gap={12}>
-                                            {categoryData.expenseByCategory.slice(0, 3).map(cat => {
-                                                const max = categoryData.expenseByCategory[0]?.totalTRY || 1;
+                                            {data.categoryBreakdown.expenseByCategory.slice(0, 3).map(cat => {
+                                                const max = data.categoryBreakdown.expenseByCategory[0]?.totalTRY || 1;
                                                 const percent = (cat.totalTRY / max) * 100;
                                                 return (
                                                     <div key={cat.categoryId}>
@@ -163,15 +161,15 @@ export default function DashboardPage() {
                                                     </div>
                                                 );
                                             })}
-                                            {categoryData.expenseByCategory.length === 0 && <Text style={{ color: 'var(--text-secondary)' }}>Veri yok</Text>}
+                                            {data.categoryBreakdown.expenseByCategory.length === 0 && <Text style={{ color: 'var(--text-secondary)' }}>Veri yok</Text>}
                                         </Flex>
                                     </Card>
                                 </Col>
                                 <Col xs={24} md={12}>
                                     <Card style={CardStyle} className="glass-card" bordered={false} title={<span style={{ color: 'var(--income)' }}>En Çok Gelir (Top 3)</span>}>
                                         <Flex vertical gap={12}>
-                                            {categoryData.incomeByCategory.slice(0, 3).map(cat => {
-                                                const max = categoryData.incomeByCategory[0]?.totalTRY || 1;
+                                            {data.categoryBreakdown.incomeByCategory.slice(0, 3).map(cat => {
+                                                const max = data.categoryBreakdown.incomeByCategory[0]?.totalTRY || 1;
                                                 const percent = (cat.totalTRY / max) * 100;
                                                 return (
                                                     <div key={cat.categoryId}>
@@ -185,7 +183,7 @@ export default function DashboardPage() {
                                                     </div>
                                                 );
                                             })}
-                                            {categoryData.incomeByCategory.length === 0 && <Text style={{ color: 'var(--text-secondary)' }}>Veri yok</Text>}
+                                            {data.categoryBreakdown.incomeByCategory.length === 0 && <Text style={{ color: 'var(--text-secondary)' }}>Veri yok</Text>}
                                         </Flex>
                                     </Card>
                                 </Col>

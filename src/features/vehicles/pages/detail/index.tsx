@@ -1,7 +1,7 @@
 import { Plus, Edit, Trash2, ChevronLeft } from 'lucide-react';
 import { useState, useMemo, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, useInfiniteQuery } from '@tanstack/react-query';
 import { Button, Form, Input, InputNumber, Row, Col, Typography, Popconfirm, Drawer, Select, DatePicker, Segmented, Skeleton, Spin, Alert } from 'antd';
 import dayjs from 'dayjs';
 import { showSuccess, showError } from '@/lib/toast';
@@ -57,14 +57,32 @@ const VehicleDetailPage = () => {
         enabled: !!vehicleId,
     });
 
-    const { data: transactionsData, isLoading: isLoadingTransactions } = useQuery({
+    const {
+        data: transactionsInfiniteData,
+        isLoading: isLoadingTransactions,
+        isFetchingNextPage,
+        hasNextPage,
+        fetchNextPage
+    } = useInfiniteQuery({
         queryKey: ['transactions', vehicleId, filters],
-        queryFn: () => getTransactions(vehicleId!, { pageSize: 100 }, filters),
+        queryFn: ({ pageParam }: { pageParam: any }) => getTransactions(vehicleId!, { pageSize: 20, cursor: pageParam }, filters),
+        initialPageParam: null as any,
+        getNextPageParam: (lastPage: any) => lastPage.nextCursor,
         enabled: !!vehicleId,
+        staleTime: 30 * 1000,
     });
+
+    const transactions = useMemo(() =>
+        transactionsInfiniteData?.pages.flatMap((page: any) => page.items) || [],
+        [transactionsInfiniteData]);
 
     const txType = Form.useWatch('type', form);
     const { data: categories, isLoading: isLoadingCategories } = useCategories();
+
+    const categoriesMap = useMemo(() => {
+        if (!categories) return {};
+        return categories.reduce((acc, cat) => ({ ...acc, [cat.id]: cat }), {} as Record<string, any>);
+    }, [categories]);
 
     const filteredCategories = useMemo(() => {
         const currentType = txType || form.getFieldValue('type') || 'INCOME';
@@ -72,8 +90,8 @@ const VehicleDetailPage = () => {
     }, [categories, txType, form]);
 
     const topExpenseCategory = useMemo(() => {
-        if (!transactionsData?.items || !categories) return null;
-        const expenses = transactionsData.items.filter(t => t.type === 'EXPENSE');
+        if (!transactions || !categories) return null;
+        const expenses = transactions.filter(t => t.type === 'EXPENSE');
         const map: Record<string, number> = {};
         expenses.forEach(t => {
             if (t.categoryId) map[t.categoryId] = (map[t.categoryId] || 0) + (t.amountTRY || 0);
@@ -82,10 +100,10 @@ const VehicleDetailPage = () => {
         if (arr.length === 0) return null;
         const bestCatId = arr[0][0];
         const bestAmount = arr[0][1];
-        const cat = categories.find(c => c.id === bestCatId);
+        const cat = categoriesMap[bestCatId];
         if (!cat) return null;
         return { name: cat.name, amount: bestAmount, color: cat.color };
-    }, [transactionsData?.items, categories]);
+    }, [transactions, categoriesMap, categories]);
 
     // Auto-fill exchange rate when currency changes
     useEffect(() => {
@@ -192,7 +210,8 @@ const VehicleDetailPage = () => {
     const invalidateAll = () => {
         queryClient.invalidateQueries({ queryKey: ['vehicleSummary', vehicleId] });
         queryClient.invalidateQueries({ queryKey: ['transactions', vehicleId] });
-        queryClient.invalidateQueries({ queryKey: ['dashboard'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboardData'] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] }); // backward compatibility if any
     };
 
     // ── Drawer open/close ─────────────────────────────────────────────────────
@@ -538,18 +557,38 @@ const VehicleDetailPage = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {isLoadingTransactions ? (
                     <Skeleton active />
-                ) : transactionsData?.items.length === 0 ? (
+                ) : transactions.length === 0 ? (
                     <EmptyState onAdd={() => handleOpen()} />
                 ) : (
-                    transactionsData?.items.map((tx, idx) => (
-                        <TransactionCard
-                            key={tx.id}
-                            transaction={tx}
-                            index={idx}
-                            onEdit={handleOpen}
-                            onDelete={(id) => deleteMutation.mutate(id)}
-                        />
-                    ))
+                    <>
+                        {transactions.map((tx, idx) => (
+                            <TransactionCard
+                                key={tx.id}
+                                transaction={tx}
+                                categoryName={categoriesMap[tx.categoryId]?.name}
+                                index={idx}
+                                onEdit={handleOpen}
+                                onDelete={(id) => deleteMutation.mutate(id)}
+                            />
+                        ))}
+
+                        {hasNextPage && (
+                            <Button
+                                onClick={() => fetchNextPage()}
+                                loading={isFetchingNextPage}
+                                style={{
+                                    marginTop: 16,
+                                    height: 44,
+                                    borderRadius: 12,
+                                    background: 'rgba(255,255,255,0.05)',
+                                    color: 'var(--text-secondary)',
+                                    border: '1px solid rgba(255,255,255,0.1)'
+                                }}
+                            >
+                                {isFetchingNextPage ? 'Yükleniyor...' : 'Daha Fazla Yükle'}
+                            </Button>
+                        )}
+                    </>
                 )}
             </div>
 

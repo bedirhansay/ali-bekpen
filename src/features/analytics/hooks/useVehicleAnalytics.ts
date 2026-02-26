@@ -7,7 +7,7 @@ export const useVehicleAnalytics = (filters: AnalyticsFilters) => {
     const { data: vehiclesData } = useVehicles();
 
     return useQuery({
-        queryKey: ['analytics', 'vehicles', filters],
+        queryKey: ['analytics', 'vehicles', filters, vehiclesData?.items.length],
         queryFn: async () => {
             const vehicles = vehiclesData?.items || [];
             const transactions = await getFilteredTransactions({ ...filters, type: 'ALL' });
@@ -40,6 +40,6 @@ export const useVehicleAnalytics = (filters: AnalyticsFilters) => {
 
             return results.sort((a, b) => b.net - a.net);
         },
-        enabled: !!vehiclesData
+        enabled: !!vehiclesData?.items
     });
 };

@@ -1,7 +1,7 @@
-import { Plus, Car, MoreVertical, Edit2, Trash2, ArrowRight } from 'lucide-react';
-import { useState } from 'react';
+import { Plus, Car, MoreVertical, Edit2, Trash2, ArrowRight, Calendar } from 'lucide-react';
+import { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Button, Form, Input, Modal, Row, Col, Typography, Dropdown, MenuProps, DatePicker } from 'antd';
+import { Button, Form, Input, Modal, Row, Col, Typography, Dropdown, MenuProps, DatePicker, Select, Flex } from 'antd';
 import { Link } from 'react-router-dom';
 import dayjs from 'dayjs';
 import { getVehicles, createVehicle, updateVehicle, deleteVehicle } from '../../api';
@@ -9,12 +9,16 @@ import { Vehicle } from '../../types';
 import { getExpiryStatus } from '../../utils/statusUtils';
 import { showSuccess, showError, showLoading } from '../../../../lib/toast';
 import { PageSkeleton } from '@/components/PageSkeleton';
+import { useVehicleAnalytics } from '@/features/analytics/hooks/useVehicleAnalytics';
+import { formatCurrency } from '@/shared/utils/formatters';
 
 const { Title, Text } = Typography;
 
 const VehiclesPage = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
+    const currentYear = new Date().getFullYear();
+    const [selectedYear, setSelectedYear] = useState(currentYear);
     const [form] = Form.useForm();
     const queryClient = useQueryClient();
 
@@ -22,6 +26,13 @@ const VehiclesPage = () => {
         queryKey: ['vehicles'],
         queryFn: () => getVehicles({ pageSize: 100 }),
     });
+
+    const { data: analyticsData } = useVehicleAnalytics({
+        year: selectedYear,
+        type: 'ALL'
+    });
+
+    const years = Array.from({ length: 5 }, (_, i) => currentYear - i);
 
     const createMutation = useMutation({
         mutationFn: createVehicle,
@@ -139,12 +150,19 @@ const VehiclesPage = () => {
 
     return (
         <div style={{ position: 'relative', minHeight: 'calc(100vh - 120px)' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }} className="animated-list-item stagger-1">
+            <Flex justify="space-between" align="center" style={{ marginBottom: 32 }} className="animated-list-item stagger-1">
                 <div>
                     <Title level={2} style={{ color: 'var(--text-primary)', margin: 0 }}>Araç Filosu</Title>
                     <Text style={{ color: 'var(--text-secondary)' }}>Tüm araçlarınızı ve finansal özetlerini görüntüleyin.</Text>
                 </div>
-            </div>
+                <Select
+                    value={selectedYear}
+                    onChange={setSelectedYear}
+                    style={{ width: 120 }}
+                    size="large"
+                    options={years.map(y => ({ label: `${y} Yılı`, value: y }))}
+                />
+            </Flex>
 
             <Row gutter={[24, 24]}>
                 {data?.items.map((vehicle, index) => {
@@ -152,14 +170,17 @@ const VehiclesPage = () => {
                     const inspection = getExpiryStatus(vehicle.inspectionExpiryDate);
                     const isCritical = insurance.status === 'danger' || inspection.status === 'danger' || insurance.status === 'expired' || inspection.status === 'expired';
 
+                    // Get totals from analytics
+                    const stats = analyticsData?.find(s => s.vehicleId === vehicle.id);
+
                     return (
                         <Col xs={24} sm={12} lg={8} key={vehicle.id}>
-                            <div className={`glass-card animated-list-item stagger-${(index % 4) + 1}`}
+                            <div className={`glass-card animated-list-item stagger-` + ((index % 4) + 1)}
                                 style={{
                                     position: 'relative',
                                     overflow: 'hidden',
                                     padding: 0,
-                                    border: isCritical ? `1px solid ${insurance.status === 'expired' || inspection.status === 'expired' ? '#991b1b' : 'rgba(239, 68, 68, 0.3)'}` : undefined,
+                                    border: isCritical ? `1px solid ${insurance.status === 'expired' || inspection.status === 'expired' ? '#991b1b' : 'rgba(239, 68, 68, 0.3)'}` : '1px solid rgba(255,255,255,0.06)',
                                     boxShadow: isCritical ? `0 0 20px -5px ${insurance.status === 'expired' || inspection.status === 'expired' ? 'rgba(153, 27, 27, 0.4)' : 'rgba(239, 68, 68, 0.4)'}` : undefined
                                 }}
                             >
@@ -209,17 +230,20 @@ const VehiclesPage = () => {
                                     <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
                                         <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
                                             <Text style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Gelir Özeti</Text>
-                                            <div style={{ color: 'var(--income)', fontWeight: 600 }}>Tıklayıp Gör</div>
+                                            <div style={{ color: 'var(--income)', fontWeight: 700, fontSize: 15, marginTop: 2 }}>
+                                                {formatCurrency(stats?.totalIncome || 0, 'TRY')}
+                                            </div>
                                         </div>
                                         <div style={{ flex: 1, background: 'rgba(0,0,0,0.2)', padding: 12, borderRadius: 8, border: '1px solid rgba(255,255,255,0.05)' }}>
                                             <Text style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Gider Özeti</Text>
-                                            <div style={{ color: 'var(--expense)', fontWeight: 600 }}>Tıklayıp Gör</div>
+                                            <div style={{ color: 'var(--expense)', fontWeight: 700, fontSize: 15, marginTop: 2 }}>
+                                                {formatCurrency(stats?.totalExpense || 0, 'TRY')}
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
 
                                 <div style={{ padding: '0 24px 24px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-                                    {/* Expiry Indicators */}
                                     <div style={{ display: 'flex', gap: 12 }}>
                                         <div style={{
                                             flex: 1,
@@ -283,7 +307,6 @@ const VehiclesPage = () => {
                 })}
             </Row>
 
-            {/* Floating FAB */}
             <Button
                 type="primary"
                 shape="circle"
