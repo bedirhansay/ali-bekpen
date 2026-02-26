@@ -5,8 +5,6 @@ import {
     LogoutOutlined,
     AppstoreOutlined,
     CarOutlined,
-    GlobalOutlined,
-    CaretDownOutlined,
     SettingOutlined,
     MenuOutlined,
     BarChartOutlined
@@ -27,7 +25,6 @@ export const Header: React.FC = () => {
 
     // Desktop: lg and above, Tablet: md, Mobile: sm and below
     const isMobile = !screens.md;
-    const isTablet = screens.md && !screens.lg;
 
     const handleLogout = async () => {
         await signOut(auth);
@@ -80,12 +77,7 @@ export const Header: React.FC = () => {
         ]
     };
 
-    const languageMenuItems = {
-        items: [
-            { key: 'tr', label: 'Türkçe' },
-            { key: 'en', label: 'English' },
-        ]
-    };
+
 
     return (
         <>
@@ -126,18 +118,6 @@ export const Header: React.FC = () => {
                     {/* Right Section: Language + Avatar */}
                     <div className="header-right">
                         <Space size={isMobile ? 8 : 16}>
-                            {/* Language Switcher - Hidden on Mobile */}
-                            {!isMobile && (
-                                <Dropdown menu={languageMenuItems} placement="bottomRight" trigger={['click']}>
-                                    <div className="lang-btn" style={{ display: 'flex', alignItems: 'center', cursor: 'pointer' }}>
-                                        <Space size={4}>
-                                            <GlobalOutlined />
-                                            {!isTablet && <span>TR</span>}
-                                            <CaretDownOutlined style={{ fontSize: '10px', opacity: 0.5 }} />
-                                        </Space>
-                                    </div>
-                                </Dropdown>
-                            )}
 
                             {/* User Avatar */}
                             <Dropdown menu={userMenuItems} placement="bottomRight" trigger={['click']}>

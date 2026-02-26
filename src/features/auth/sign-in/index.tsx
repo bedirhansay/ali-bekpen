@@ -76,7 +76,7 @@ const SignIn = () => {
                             <Activity size={32} color="white" />
                         </div>
                         <Title level={1} style={{ margin: 0, color: 'white', letterSpacing: '-1px', fontSize: '3rem' }}>
-                            Bekpen<span style={{ fontWeight: 300, color: 'var(--text-secondary)' }}>Hesap</span>
+                            bi<span style={{ fontWeight: 300, color: 'var(--text-secondary)' }}>Hesap</span>
                         </Title>
                     </div>
 
