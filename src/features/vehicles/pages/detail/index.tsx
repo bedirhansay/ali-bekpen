@@ -652,8 +652,8 @@ const VehicleDetailPage = () => {
                 open={isDrawerOpen}
                 maskStyle={{ backdropFilter: 'blur(8px)' }}
             >
-                <Form form={form} layout="vertical" onFinish={onFinish} size="large">
-                    <Form.Item name="type" label="İşlem Yönü" rules={[{ required: true }]}>
+                <Form form={form} layout="vertical" onFinish={onFinish}>
+                    <Form.Item name="type" rules={[{ required: true }]} style={{ marginBottom: 16 }}>
                         <Segmented
                             block
                             options={[
@@ -664,53 +664,54 @@ const VehicleDetailPage = () => {
                         />
                     </Form.Item>
 
-                    <Form.Item name="categoryId" label="Kategori" rules={[{ required: true, message: 'Category is required' }]}>
-                        <Select
-                            placeholder="Kategori Seçin"
-                            disabled={isLoadingCategories || !filteredCategories?.length}
-                            loading={isLoadingCategories}
-                            options={filteredCategories?.map(cat => ({
-                                label: (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                        <div style={{ width: 12, height: 12, borderRadius: '50%', backgroundColor: cat.color }} />
-                                        <span>{cat.name}</span>
-                                    </div>
-                                ),
-                                value: cat.id
-                            }))}
-                        />
-                    </Form.Item>
+                    <Row gutter={12}>
+                        <Col span={12}>
+                            <Form.Item name="categoryId" label="Kategori" rules={[{ required: true, message: 'Kategori seçin' }]} style={{ marginBottom: 16 }}>
+                                <Select
+                                    placeholder="Kategori Seçin"
+                                    disabled={isLoadingCategories || !filteredCategories?.length}
+                                    loading={isLoadingCategories}
+                                    options={filteredCategories?.map(cat => ({
+                                        label: (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                                <div style={{ width: 10, height: 10, borderRadius: '50%', backgroundColor: cat.color }} />
+                                                <span style={{ fontSize: 13 }}>{cat.name}</span>
+                                            </div>
+                                        ),
+                                        value: cat.id
+                                    }))}
+                                />
+                            </Form.Item>
+                        </Col>
+                        <Col span={12}>
+                            <Form.Item name="date" label="İşlem Tarihi" rules={[{ required: true }]} style={{ marginBottom: 16 }}>
+                                <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
+                            </Form.Item>
+                        </Col>
+                    </Row>
 
-                    <Form.Item name="date" label="İşlem Tarihi" rules={[{ required: true }]}>
-                        <DatePicker style={{ width: '100%' }} format="DD.MM.YYYY" />
-                    </Form.Item>
-
-                    <Form.Item name="description" label="Açıklama (isteğe bağlı)">
-                        <Input.TextArea rows={3} placeholder="Açıklama girilmedi" />
-                    </Form.Item>
-
-                    <Row gutter={16}>
+                    <Row gutter={12}>
                         <Col span={10}>
-                            <Form.Item name="currencyCode" label="Para Birimi" rules={[{ required: true }]}>
+                            <Form.Item name="currencyCode" label="Para Birimi" rules={[{ required: true }]} style={{ marginBottom: 16 }}>
                                 <Select>
-                                    <Select.Option value="TRY">TRY — Türk Lirası</Select.Option>
+                                    <Select.Option value="TRY">TRY</Select.Option>
                                     <Select.Option value="USD" disabled={ratesError && !rates?.USD}>
-                                        USD — Amerikan Doları{ratesError && !rates?.USD ? ' (kur yok)' : ''}
+                                        USD{ratesError && !rates?.USD ? ' (!)' : ''}
                                     </Select.Option>
                                     <Select.Option value="EUR" disabled={ratesError && !rates?.EUR}>
-                                        EUR — Euro{ratesError && !rates?.EUR ? ' (kur yok)' : ''}
+                                        EUR{ratesError && !rates?.EUR ? ' (!)' : ''}
                                     </Select.Option>
                                 </Select>
                             </Form.Item>
                         </Col>
                         <Col span={14}>
-                            <Form.Item name="amount" label="Tutar" rules={[{ required: true, type: 'number', min: 0.01 }]}>
-                                <InputNumber style={{ width: '100%' }} precision={2} />
+                            <Form.Item name="amount" label="Tutar" rules={[{ required: true, type: 'number', min: 0.01 }]} style={{ marginBottom: 16 }}>
+                                <InputNumber style={{ width: '100%' }} precision={2} placeholder="0.00" />
                             </Form.Item>
                         </Col>
                     </Row>
 
-                    <Form.Item label="Günlük Kur (TCMB — ForexSelling)">
+                    <Form.Item label="Günlük Kur (TCMB)" style={{ marginBottom: 16 }}>
                         <Row gutter={8}>
                             <Col span={18}>
                                 <Form.Item name="tcmbExchangeRate" noStyle rules={[{ required: true }]}>
@@ -737,15 +738,22 @@ const VehicleDetailPage = () => {
                         </Row>
                     </Form.Item>
 
+                    <Form.Item name="description" label="Açıklama (isteğe bağlı)" style={{ marginBottom: 16 }}>
+                        <Input.TextArea rows={2} placeholder="Kısa bir açıklama..." />
+                    </Form.Item>
+
                     <div style={{
-                        marginTop: 32,
-                        padding: 24,
-                        borderRadius: 12,
-                        background: 'rgba(37, 99, 235, 0.1)',
-                        border: '1px solid rgba(37, 99, 235, 0.2)'
+                        marginTop: 12,
+                        padding: '12px 16px',
+                        borderRadius: 10,
+                        background: 'rgba(37, 99, 235, 0.08)',
+                        border: '1px solid rgba(37, 99, 235, 0.15)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
                     }}>
-                        <Text style={{ color: 'var(--accent-blue)', display: 'block', marginBottom: 4 }}>Hesaplanan TRY Karşılığı</Text>
-                        <Title level={2} style={{ color: 'var(--text-primary)', margin: 0 }}>
+                        <Text style={{ color: 'var(--accent-blue)', fontSize: 13, margin: 0 }}>Hesaplanan Net TRY</Text>
+                        <Title level={4} style={{ color: 'var(--text-primary)', margin: 0, fontWeight: 700 }}>
                             {formatCurrency(amountTRY, 'TRY')}
                         </Title>
                     </div>
@@ -756,13 +764,13 @@ const VehicleDetailPage = () => {
                         onClick={() => form.submit()}
                         loading={isSaving || createMutation.isPending || updateMutation.isPending}
                         style={{
-                            marginTop: 24,
-                            height: 48,
-                            borderRadius: 12,
+                            marginTop: 20,
+                            height: 44,
+                            borderRadius: 10,
                             background: 'var(--accent-gradient)',
                             border: 'none',
                             fontWeight: 700,
-                            fontSize: 16,
+                            fontSize: 15,
                         }}
                     >
                         Kaydet
