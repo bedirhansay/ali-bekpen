@@ -29,6 +29,7 @@ import { db } from './firebase-config';
 export const COLLECTIONS = {
     VEHICLES: 'vehicles',
     TRANSACTIONS: 'transactions',
+    EXCHANGE_RATES: 'exchangeRates',
 } as const;
 
 /* ----------------------------- BASE TYPES ----------------------------- */

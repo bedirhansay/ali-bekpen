@@ -86,8 +86,8 @@ export const TransactionCard: React.FC<TransactionCardProps> = ({ transaction: t
                     color: 'var(--text-secondary)',
                     fontSize: 11,
                 }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                        <Calendar size={10} />
+                    <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 13, fontWeight: 500 }}>
+                        <Calendar size={12} />
                         {date}
                     </span>
                     {tx.currencyCode !== 'TRY' && (

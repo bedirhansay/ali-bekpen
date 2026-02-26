@@ -1,6 +1,8 @@
 import { useYearlySummary } from '@/features/dashboard/useYearlySummary';
 import { useYearState } from '@/features/dashboard/yearState';
-import { Alert, Card, Col, Flex, Row, Select, Spin, Typography } from 'antd';
+import { Alert, Button, Card, Col, Flex, Row, Select, Spin, Typography } from 'antd';
+import { RefreshCcw } from 'lucide-react';
+import { useState } from 'react';
 
 const { Title, Text } = Typography;
 
@@ -28,7 +30,14 @@ const CardStyle = {
 
 export default function DashboardPage() {
     const { year, setYear, currentYear } = useYearState();
-    const { data, isLoading, error } = useYearlySummary(year);
+    const { data, isLoading, isFetching, error, refetch } = useYearlySummary(year);
+    const [isRefreshing, setIsRefreshing] = useState(false);
+
+    const handleRefresh = async () => {
+        setIsRefreshing(true);
+        await refetch();
+        setTimeout(() => setIsRefreshing(false), 600);
+    };
 
     // Generate a list of years for the dropdown (e.g., from 5 years ago to next year)
     const years = Array.from({ length: 10 }, (_, i) => currentYear - 5 + i).reverse();
@@ -50,13 +59,33 @@ export default function DashboardPage() {
 
             <Flex justify="space-between" align="center" className="mb-6">
                 <Title level={2} className="!m-0">Yıllık Özet</Title>
-                <Select
-                    value={year}
-                    onChange={(val) => setYear(val)}
-                    options={years.map(y => ({ label: `${y} Yılı`, value: y }))}
-                    style={{ width: 150 }}
-                    size="large"
-                />
+                <Flex gap={12} align="center">
+                    <Button
+                        type="text"
+                        icon={<RefreshCcw size={18} className={isRefreshing || isFetching ? 'animate-spin' : ''} />}
+                        onClick={handleRefresh}
+                        loading={isRefreshing}
+                        style={{
+                            background: 'rgba(255,255,255,0.05)',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '10px',
+                            height: '40px',
+                            width: '40px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: 'var(--text-secondary)'
+                        }}
+                    />
+                    <Select
+                        value={year}
+                        onChange={(val) => setYear(val)}
+                        options={years.map(y => ({ label: `${y} Yılı`, value: y }))}
+                        style={{ width: 140 }}
+                        size="large"
+                        className="custom-select"
+                    />
+                </Flex>
             </Flex>
 
             {isLoading || !data ? (

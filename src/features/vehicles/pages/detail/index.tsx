@@ -4,7 +4,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Button, Form, Input, InputNumber, Row, Col, Typography, message, Popconfirm, Drawer, Select, DatePicker, Segmented, Skeleton, Spin, Alert } from 'antd';
 import dayjs from 'dayjs';
-import toast from 'react-hot-toast';
+import { showSuccess, showError } from '@/lib/toast';
 
 import { getVehicle, deleteVehicle } from '../../api';
 import {
@@ -15,7 +15,7 @@ import {
     getVehicleSummary
 } from '@/features/transactions/api';
 import { useExchangeRates } from '@/features/exchangeRates/hooks/useExchangeRates';
-import { getDailyRates } from '@/features/exchangeRates/api';
+import { getLatestExchangeRates } from '@/features/exchangeRates/api';
 import { Transaction, CreateTransactionDTO, TransactionFilters, CurrencyCode } from '@/features/transactions/types';
 import { EmptyState } from '@/features/transactions/components/EmptyState';
 import { TransactionCard } from '@/features/transactions/components/TransactionCard';
@@ -79,40 +79,53 @@ const VehicleDetailPage = () => {
     const createMutation = useMutation({
         mutationFn: createTransaction,
         onSuccess: () => {
-            message.success('İşlem kaydedildi');
+            showSuccess('İşlem başarıyla kaydedildi');
             invalidateAll();
             handleClose();
         },
+        onError: (err) => {
+            showError(err || 'İşlem sırasında hata oluştu');
+        }
     });
 
     const updateMutation = useMutation({
         mutationFn: ({ id, data }: { id: string; data: CreateTransactionDTO }) => updateTransaction(id, data),
         onSuccess: () => {
-            message.success('İşlem güncellendi');
+            showSuccess('İşlem güncellendi');
             invalidateAll();
             handleClose();
         },
+        onError: (err) => {
+            showError(err || 'İşlem güncellenirken hata oluştu');
+        }
     });
 
     const deleteMutation = useMutation({
         mutationFn: deleteTransaction,
         onSuccess: () => {
-            message.success('İşlem silindi');
+            showSuccess('İşlem silindi');
             invalidateAll();
         },
+        onError: (err) => {
+            showError(err);
+        }
     });
 
     const deleteVehicleMutation = useMutation({
         mutationFn: deleteVehicle,
         onSuccess: () => {
-            message.success('Araç silindi');
+            showSuccess('Araç silindi');
             navigate('/vehicles');
         },
+        onError: (err) => {
+            showError(err);
+        }
     });
 
     const invalidateAll = () => {
         queryClient.invalidateQueries({ queryKey: ['vehicleSummary', vehicleId] });
         queryClient.invalidateQueries({ queryKey: ['transactions', vehicleId] });
+        queryClient.invalidateQueries({ queryKey: ['dashboard'] });
     };
 
     // ── Drawer open/close ─────────────────────────────────────────────────────
@@ -127,7 +140,7 @@ const VehicleDetailPage = () => {
         } else {
             setEditingTransaction(null);
             form.resetFields();
-            form.setFieldsValue({ date: dayjs(), currencyCode: 'TRY', tcmbExchangeRate: 1, type: 'EXPENSE' });
+            form.setFieldsValue({ date: dayjs(), currencyCode: 'TRY', tcmbExchangeRate: 1, type: 'INCOME' });
         }
         setIsDrawerOpen(true);
     };
@@ -159,14 +172,14 @@ const VehicleDetailPage = () => {
                 frozenRate = manualRate;
             } else {
                 try {
-                    const ratesResponse = await getDailyRates();
-                    const fetchedRate = ratesResponse.rates[currency as keyof typeof ratesResponse.rates];
+                    const ratesResponse = await getLatestExchangeRates();
+                    const fetchedRate = ratesResponse[currency] as number;
                     if (!fetchedRate) {
                         throw new Error(`${currency} için kur alınamadı`);
                     }
                     frozenRate = fetchedRate;
-                } catch {
-                    toast.error('Kur bilgisi alınamadı');
+                } catch (err) {
+                    showError(err || 'Kur bilgisi alınamadı');
                     setIsSaving(false);
                     return; // Prevent save if currency is not TRY and rate is unavailable
                 }
@@ -319,9 +332,9 @@ const VehicleDetailPage = () => {
                 </div>
 
                 {/* Exchange rate error banner */}
-                {ratesError && (
+                {ratesError && !rates && (
                     <Alert
-                        message="TCMB kur bilgisi alınamadı. TRY dışı işlem ekleyemezsiniz."
+                        message="Döviz kuru bilgisi şu an alınamıyor. TRY dışı işlem ekleyemezsiniz."
                         type="warning"
                         showIcon
                         style={{ marginBottom: 12, borderRadius: 10 }}
@@ -469,11 +482,11 @@ const VehicleDetailPage = () => {
                             <Form.Item name="currencyCode" label="Para Birimi" rules={[{ required: true }]}>
                                 <Select>
                                     <Select.Option value="TRY">TRY — Türk Lirası</Select.Option>
-                                    <Select.Option value="USD" disabled={ratesError}>
-                                        USD — Amerikan Doları{ratesError ? ' (kur yok)' : ''}
+                                    <Select.Option value="USD" disabled={ratesError && !rates?.USD}>
+                                        USD — Amerikan Doları{ratesError && !rates?.USD ? ' (kur yok)' : ''}
                                     </Select.Option>
-                                    <Select.Option value="EUR" disabled={ratesError}>
-                                        EUR — Euro{ratesError ? ' (kur yok)' : ''}
+                                    <Select.Option value="EUR" disabled={ratesError && !rates?.EUR}>
+                                        EUR — Euro{ratesError && !rates?.EUR ? ' (kur yok)' : ''}
                                     </Select.Option>
                                 </Select>
                             </Form.Item>

@@ -209,12 +209,29 @@ body {
 }
 
 .ant-input,
+.ant-input-affix-wrapper,
 .ant-input-number,
 .ant-picker,
 .ant-select-selector {
-  background-color: rgba(0, 0, 0, 0.2) !important;
+  background-color: transparent !important;
   border-color: var(--border-light) !important;
   color: var(--text-primary) !important;
+}
+
+.ant-input:hover,
+.ant-input-affix-wrapper:hover,
+.ant-picker:hover,
+.ant-select-selector:hover {
+  border-color: rgba(255, 255, 255, 0.2) !important;
+}
+
+.ant-input:focus,
+.ant-input-affix-wrapper-focused,
+.ant-input-number-focused,
+.ant-picker-focused,
+.ant-select-focused .ant-select-selector {
+  border-color: var(--accent-blue) !important;
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.1) !important;
 }
 
 .ant-input::placeholder {
