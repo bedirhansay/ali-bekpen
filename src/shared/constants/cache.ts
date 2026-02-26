@@ -1,0 +1,7 @@
+export const CACHE_TIMES = {
+  CATEGORIES: Infinity,
+  DASHBOARD: 60 * 1000,
+  VEHICLES: 60 * 1000,
+  EXCHANGE_RATES: 60 * 60 * 1000, // 1 hour
+  SEFERS: 30 * 1000
+};
